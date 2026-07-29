@@ -1,0 +1,17 @@
+<Window
+    x:Class="KeyBoopWin.AreaSelectorWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+	<Grid x:Name="RootGrid" Background="Transparent">
+		<Image x:Name="BackgroundImage" Stretch="None" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+		<Rectangle x:Name="DimOverlay" Fill="#80000000"/>
+		<Canvas x:Name="SelectionCanvas">
+			<Rectangle x:Name="SelectionRect"
+                       Stroke="#0078D4"
+                       StrokeThickness="2"
+                       Fill="Transparent"
+                       Visibility="Collapsed"/>
+		</Canvas>
+	</Grid>
+</Window>

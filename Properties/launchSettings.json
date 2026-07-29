@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "KeyBoopWin (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "KeyBoopWin (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

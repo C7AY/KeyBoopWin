@@ -1,0 +1,101 @@
+<Window
+    x:Class="KeyBoopWin.SettingsWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="⚙️ Настройки KeyBoopWin">
+
+    <Grid Padding="25">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="⚙️ Настройки" FontSize="24" FontWeight="Bold" Margin="0,0,0,20"/>
+
+        <!-- ⚡ Добавили Padding справа чтобы скролл не перекрывал контент -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,30,0">
+            <!-- ⚡ Один StackPanel содержит всё содержимое ScrollViewer -->
+            <StackPanel Spacing="25">
+
+                <Border Background="#1e1e1e" Padding="15" CornerRadius="8" BorderBrush="Gray" BorderThickness="2">
+                    <TextBlock Text="⚠️ Внимание: выбранные комбинации будут перехватываться программой глобально. Избегайте системных сочетаний (например, Ctrl+C), иначе они перестанут работать в других приложениях." 
+                               TextWrapping="Wrap" Foreground="WhiteSmoke" FontSize="13"/>
+                </Border>
+
+                <StackPanel Spacing="15">
+                    <TextBlock Text="⌨️ Горячие клавиши (Ручное исправление) выделенный текст" FontSize="16" FontWeight="SemiBold"/>
+
+                    <!-- Перевести кракозябры -->
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Перевести кракозябры (в правильную раскладку)" FontWeight="SemiBold"/>
+                        <Grid ColumnDefinitions="Auto, *, Auto">
+                            <Button Grid.Column="0" Content="✏️ Изменить" Click="RecordToRu_Click" Height="40" Width="120"/>
+                            <Border Grid.Column="1" Background="#1e1e1e" CornerRadius="4" Height="40" Margin="15,0,15,0">
+                                <TextBlock x:Name="TxtConvertToRu" Text="Ctrl + [" Foreground="#00FF00" Padding="10,12" FontSize="14" VerticalAlignment="Center"/>
+                            </Border>
+                            <Button Grid.Column="2" Content="🔄 Стандартный" Click="ResetToRu_Click" Height="40"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- Вернуть кракозябры -->
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Вернуть кракозябры (как было)" FontWeight="SemiBold"/>
+                        <Grid ColumnDefinitions="Auto, *, Auto">
+                            <Button Grid.Column="0" Content="✏️ Изменить" Click="RecordToEn_Click" Height="40" Width="120"/>
+                            <Border Grid.Column="1" Background="#1e1e1e" CornerRadius="4" Height="40" Margin="15,0,15,0">
+                                <TextBlock x:Name="TxtConvertToEn" Text="Ctrl + ]" Foreground="#00FF00" Padding="10,12" FontSize="14" VerticalAlignment="Center"/>
+                            </Border>
+                            <Button Grid.Column="2" Content="🔄 Стандартный" Click="ResetToEn_Click" Height="40"/>
+                        </Grid>
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel Spacing="15" Opacity="0.7">
+                    <TextBlock Text="🌙 Режим работы" FontSize="16" FontWeight="SemiBold"/>
+                    <ToggleSwitch x:Name="SleepModeToggle" Header="Спящий режим (приостановить перехват клавиатуры)" IsOn="False" Toggled="SleepMode_Toggled"/>
+                    <TextBlock Text="В следующей версии программа сможет полностью отключать хук, экономя ресурсы." FontSize="12" Foreground="Gray"/>
+                </StackPanel>
+
+                <!-- === СЕКЦИЯ: УПРАВЛЕНИЕ СЛОВАРЯМИ === -->
+                <StackPanel Spacing="15" Margin="0,10,0,0">
+                    <TextBlock Text="📚 Управление словарями" FontSize="16" FontWeight="SemiBold"/>
+
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="🇷🇺 Русский словарь (ru.txt)" FontWeight="SemiBold" FontSize="13"/>
+                        <Grid ColumnDefinitions="*, Auto">
+                            <TextBox x:Name="TxtRuDictionary" IsReadOnly="True" Background="#1e1e1e" Foreground="#AAAAAA" Height="35" VerticalContentAlignment="Center" Margin="0,0,10,0"/>
+                            <Button Grid.Column="1" Content="📂 Обзор" Click="BrowseRuDictionary_Click" Height="35"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="🇬🇧 Английский словарь (en.txt)" FontWeight="SemiBold" FontSize="13"/>
+                        <Grid ColumnDefinitions="*, Auto">
+                            <TextBox x:Name="TxtEnDictionary" IsReadOnly="True" Background="#1e1e1e" Foreground="#AAAAAA" Height="35" VerticalContentAlignment="Center" Margin="0,0,10,0"/>
+                            <Button Grid.Column="1" Content="📂 Обзор" Click="BrowseEnDictionary_Click" Height="35"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="🚫 Словарь запрещённых слов (banword.txt)" FontWeight="SemiBold" FontSize="13"/>
+                        <Grid ColumnDefinitions="*, Auto">
+                            <TextBox x:Name="TxtBanwordDictionary" IsReadOnly="True" Background="#1e1e1e" Foreground="#AAAAAA" Height="35" VerticalContentAlignment="Center" Margin="0,0,10,0"/>
+                            <Button Grid.Column="1" Content="📂 Обзор" Click="BrowseBanwordDictionary_Click" Height="35"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <Button Content="📜 Обновить словари с GitHub" Click="UpdateDictionariesFromGitHub_Click" Height="40" Margin="0,10,0,0" Background="#0078D4" Foreground="White"/>
+                    <TextBlock Text="Скачает актуальные версии словарей из репозитория на GitHub" FontSize="11" Foreground="#888888" FontStyle="Italic"/>
+                </StackPanel>
+
+            </StackPanel>
+            <!-- ⚡ Закрываем StackPanel здесь, внутри ScrollViewer -->
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0" Spacing="10">
+            <Button Content="Отмена" Click="Cancel_Click"/>
+            <Button Content="Сохранить" Click="Save_Click" Style="{StaticResource AccentButtonStyle}"/>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -1,0 +1,26 @@
+<Window
+    x:Class="KeyBoopWin.ScreenTranslatorWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="📺 Экранный переводчик">
+
+    <Grid Padding="20">
+        <StackPanel Spacing="20" VerticalAlignment="Center">
+            <TextBlock Text="📺 Экранный переводчик" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center"/>
+
+            <Border Background="#1E1E1E" Padding="20" CornerRadius="8" BorderBrush="#333333" BorderThickness="1">
+                <StackPanel Spacing="15" HorizontalAlignment="Center">
+                    <TextBlock Text="Нажмите клавишу" FontSize="16" HorizontalAlignment="Center"/>
+                    <Border Background="#0078D4" Padding="15,5" CornerRadius="6" HorizontalAlignment="Center">
+                        <TextBlock Text="F10" FontSize="28" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Text="чтобы перевести английский текст на экране" 
+                               FontSize="14" Foreground="#AAAAAA" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="💡 Совет: Убедитесь, что в Windows установлен языковой пакет 'Английский (США)' с компонентом 'Распознавание текста'." 
+                       FontSize="12" Foreground="#888888" TextWrapping="Wrap" TextAlignment="Center"/>
+        </StackPanel>
+    </Grid>
+</Window>

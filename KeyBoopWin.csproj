@@ -1,0 +1,181 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+		<TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+		<RootNamespace>KeyBoopWin</RootNamespace>
+		<ApplicationManifest>app.manifest</ApplicationManifest>
+		<Platforms>x86;x64;ARM64</Platforms>
+		<RuntimeIdentifiers>win-x86;win-x64;win-arm64</RuntimeIdentifiers>
+		<PublishProfile>win-$(Platform).pubxml</PublishProfile>
+		<UseWinUI>true</UseWinUI>
+		<EnableMsixTooling>false</EnableMsixTooling>
+		<WindowsPackageType>None</WindowsPackageType>
+		<Nullable>enable</Nullable>
+		<NoWarn>NU1605;NU1701</NoWarn>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Remove="AreaSelectorWindow.xaml" />
+		<None Remove="ConverterWindow.xaml" />
+		<None Remove="OverlayWindow.xaml" />
+		<None Remove="Resources\WindowsAppRuntimeInstall-x64.exe" />
+		<None Remove="Resources\WindowsAppRuntimeInstall-x86.exe" />
+		<None Remove="TranslatorWindow.xaml" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Content Include="Assets\SplashScreen.scale-200.png" />
+		<Content Include="Assets\LockScreenLogo.scale-200.png" />
+		<Content Include="Assets\Square150x150Logo.scale-200.png" />
+		<Content Include="Assets\Square44x44Logo.scale-200.png" />
+		<Content Include="Assets\Square44x44Logo.targetsize-24_altform-unplated.png" />
+		<Content Include="Assets\StoreLogo.png" />
+		<Content Include="Assets\Wide310x150Logo.scale-200.png" />
+		<Content Include="Resources\WindowsAppRuntimeInstall-x64.exe">
+			<CopyToOutputDirectory>Never</CopyToOutputDirectory>
+		</Content>
+		<Content Include="Resources\WindowsAppRuntimeInstall-x86.exe">
+			<CopyToOutputDirectory>Never</CopyToOutputDirectory>
+		</Content>
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.WindowsAppSDK" Version="2.3.1" />
+		<PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.22621.756" />
+
+		<PackageReference Include="H.NotifyIcon.WinUI" Version="2.1.0" />
+
+		<PackageReference Include="NAudio" Version="2.3.0" />
+		<PackageReference Include="Vosk" Version="0.3.38" />
+
+		<PackageReference Include="System.Drawing.Common" Version="8.0.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Page Update="SettingsWindow.xaml">
+			<Generator>MSBuild:Compile</Generator>
+		</Page>
+		<Page Update="ConverterWindow.xaml">
+			<Generator>MSBuild:Compile</Generator>
+		</Page>
+		<Page Update="ScreenTranslatorWindow.xaml">
+			<Generator>MSBuild:Compile</Generator>
+		</Page>
+		<Page Update="OverlayWindow.xaml">
+			<Generator>MSBuild:Compile</Generator>
+		</Page>
+		<Page Update="TranslatorWindow.xaml">
+			<Generator>MSBuild:Compile</Generator>
+		</Page>
+	</ItemGroup>
+
+	<ItemGroup>
+		<Page Update="AreaSelectorWindow.xaml">
+		  <Generator>MSBuild:Compile</Generator>
+		</Page>
+		<None Update="Dictionaries\banword.txt">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Dictionaries\en.txt">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Dictionaries\ru.txt">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Update="Models\vosk-model-small-en-us-0.15\am\final.mdl">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-en-us-0.15\conf\mfcc.conf">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-en-us-0.15\conf\model.conf">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-en-us-0.15\graph\disambig_tid.int">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-en-us-0.15\graph\Gr.fst">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-en-us-0.15\graph\HCLr.fst">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-en-us-0.15\graph\phones\word_boundary.int">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-en-us-0.15\ivector\final.dubm">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-en-us-0.15\ivector\final.ie">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-en-us-0.15\ivector\final.mat">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-en-us-0.15\ivector\global_cmvn.stats">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-en-us-0.15\ivector\online_cmvn.conf">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-en-us-0.15\ivector\splice.conf">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-en-us-0.15\README">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Update="Models\vosk-model-small-ru-0.22\am\final.mdl">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-ru-0.22\conf\mfcc.conf">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-ru-0.22\conf\model.conf">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-ru-0.22\graph\disambig_tid.int">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-ru-0.22\graph\Gr.fst">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-ru-0.22\graph\HCLr.fst">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-ru-0.22\graph\phones\word_boundary.int">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-ru-0.22\ivector\final.dubm">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-ru-0.22\ivector\final.ie">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-ru-0.22\ivector\final.mat">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-ru-0.22\ivector\global_cmvn.stats">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-ru-0.22\ivector\online_cmvn.conf">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-ru-0.22\ivector\splice.conf">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Models\vosk-model-small-ru-0.22\README">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+	<ItemGroup>
+		<Folder Include="Models\" />
+	</ItemGroup>
+</Project>
