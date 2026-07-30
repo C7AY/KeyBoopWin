@@ -9,13 +9,13 @@ namespace KeyBoopWin
 {
     public sealed partial class ScreenTranslatorWindow : Window
     {
-        private HttpClient _httpClient;
+        private HttpClient? _httpClient;
         public string _overlayBgColor = "#CCFFFFFF";
         public string _overlayTextColor = "#000000";
         public double _overlayFontSize = 16;
 
-        private OverlayWindow _overlayWindow;
-        private ScreenCaptureAndTranslate _capturer;
+        private OverlayWindow? _overlayWindow;
+        private ScreenCaptureAndTranslate? _capturer;
 
         public ScreenTranslatorWindow()
         {
@@ -50,9 +50,10 @@ namespace KeyBoopWin
 
         public async Task TriggerScreenTranslationAsync()
         {
-            System.Diagnostics.Debug.WriteLine("📸 Делаем скриншот для выбора области...");
+            System.Diagnostics.Debug.WriteLine("📸 Шаг 1: Делаем скриншот для выбора области...");
 
-            //  Сначала делаем скриншот всего экрана
+            if (_capturer == null) return;
+
             var screenshot = _capturer.CaptureScreenBytes();
             if (screenshot.bytes == null || screenshot.bytes.Length == 0)
             {
@@ -62,15 +63,30 @@ namespace KeyBoopWin
 
             System.Diagnostics.Debug.WriteLine($"✅ Скриншот готов: {screenshot.bytes.Length} байт, {screenshot.width}x{screenshot.height}");
 
-            // ⚡ Показываем окно выбора области со скриншотом как фоном
+            System.Diagnostics.Debug.WriteLine("🖱️ Шаг 2: Открываем окно выбора области...");
             var selectorWindow = new AreaSelectorWindow();
             var selectedArea = await selectorWindow.ShowSelectionWithScreenshotAsync(
                 screenshot.bytes, screenshot.width, screenshot.height);
 
             if (selectedArea.HasValue)
             {
-                System.Diagnostics.Debug.WriteLine($"✅ Область выбрана: {selectedArea.Value}");
-                await _capturer.CaptureAndTranslateAreaAsync(selectedArea.Value);
+                System.Diagnostics.Debug.WriteLine($"✅ Шаг 3: Область выбрана: {selectedArea.Value}");
+
+                if (_overlayWindow != null)
+                {
+                    System.Diagnostics.Debug.WriteLine("🖼️ Шаг 4: Открываем окно перевода с фоном...");
+
+                    var showOverlayTask = _overlayWindow.ShowTranslationWithBackgroundAsync(
+                        screenshot.bytes, screenshot.width, screenshot.height);
+
+                    System.Diagnostics.Debug.WriteLine("🔄 Шаг 5: Запускаем распознавание и перевод...");
+                    await _capturer.TranslateAreaAsync(selectedArea.Value);
+
+                    System.Diagnostics.Debug.WriteLine("⏳ Шаг 6: Ждем нажатия Esc...");
+                    await showOverlayTask;
+
+                    System.Diagnostics.Debug.WriteLine("✅ Готово! Окно закрыто.");
+                }
             }
             else
             {

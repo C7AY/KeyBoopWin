@@ -8,7 +8,10 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using System.Linq;
+using Windows.System;
+using Windows.UI;
 
 namespace KeyBoopWin
 {
@@ -20,27 +23,73 @@ namespace KeyBoopWin
 
         private bool _isRecordingRu = false;
         private bool _isRecordingEn = false;
+        private bool _isRecordingVoice = false;
+        private bool _isRecordingTranslator = false;
+        private bool _isRecordingConverter = false;
+        private bool _isRecordingScreenTranslator = false;
 
-        // ⚡ Пути к словарям
         private string _ruDictionaryPath;
         private string _enDictionaryPath;
         private string _banwordDictionaryPath;
 
+        // Временные переменные для хоткеев окон
+        private VirtualKeyModifiers _tempVoiceModifiers = VirtualKeyModifiers.None;
+        private VirtualKey _tempVoiceKey = VirtualKey.F1;
+
+        private VirtualKeyModifiers _tempTranslatorModifiers = VirtualKeyModifiers.None;
+        private VirtualKey _tempTranslatorKey = VirtualKey.F2;
+
+        private VirtualKeyModifiers _tempConverterModifiers = VirtualKeyModifiers.None;
+        private VirtualKey _tempConverterKey = VirtualKey.F3;
+
+        private VirtualKeyModifiers _tempScreenTranslatorModifiers = VirtualKeyModifiers.None;
+        private VirtualKey _tempScreenTranslatorKey = VirtualKey.F10; //  F10 ТОЛЬКО ЗДЕСЬ
+
+        [DllImport("user32.dll")]
+        private static extern short GetAsyncKeyState(int vKey);
+
         public SettingsWindow()
         {
             this.InitializeComponent();
-            this.AppWindow.Resize(new Windows.Graphics.SizeInt32(850, 850));
+            this.AppWindow.Resize(new Windows.Graphics.SizeInt32(850, 900));
 
             _currentSettings = SettingsManager.Load();
+
+            // Загрузка настроек ручного исправления
             _tempRuKey = _currentSettings.ConvertToRuKey;
             _tempEnKey = _currentSettings.ConvertToEnKey;
-            SleepModeToggle.IsOn = _currentSettings.IsSleepMode;
+            ManualFixToggle.IsOn = _currentSettings.EnableManualFixHotkeys;
 
+            // Загрузка настроек хоткеев окон
+            VoiceInputToggle.IsOn = _currentSettings.EnableVoiceInputHotkey;
+            _tempVoiceModifiers = _currentSettings.VoiceInputHotkeyModifiers;
+            _tempVoiceKey = _currentSettings.VoiceInputHotkeyKey;
+
+            TranslatorToggle.IsOn = _currentSettings.EnableTranslatorHotkey;
+            _tempTranslatorModifiers = _currentSettings.TranslatorHotkeyModifiers;
+            _tempTranslatorKey = _currentSettings.TranslatorHotkeyKey;
+
+            ConverterToggle.IsOn = _currentSettings.EnableConverterHotkey;
+            _tempConverterModifiers = _currentSettings.ConverterHotkeyModifiers;
+            _tempConverterKey = _currentSettings.ConverterHotkeyKey;
+
+            ScreenTranslatorToggle.IsOn = _currentSettings.EnableScreenTranslatorHotkey;
+            _tempScreenTranslatorModifiers = _currentSettings.ScreenTranslatorHotkeyModifiers;
+            _tempScreenTranslatorKey = _currentSettings.ScreenTranslatorHotkeyKey;
+
+            // Спящий режим и автозагрузка
+            SleepModeToggle.IsOn = _currentSettings.IsSleepMode;
+            AutoStartToggle.IsOn = SettingsManager.CheckAutoStart();
+
+            // Словари
             _ruDictionaryPath = _currentSettings.RuDictionaryPath;
             _enDictionaryPath = _currentSettings.EnDictionaryPath;
             _banwordDictionaryPath = _currentSettings.BanwordDictionaryPath;
 
+            // Обновление UI
             UpdateTextBoxes();
+            UpdateHotkeyDisplays();
+            UpdateManualFixUI();
             UpdateDictionaryPaths();
             CenterWindowOnScreen();
 
@@ -49,16 +98,12 @@ namespace KeyBoopWin
 
         private void SettingsWindow_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
         {
-            if (_isRecordingRu)
-            {
-                HandleKeyPress(e, ref _tempRuKey, ref _isRecordingRu, "RU");
-                e.Handled = true;
-            }
-            else if (_isRecordingEn)
-            {
-                HandleKeyPress(e, ref _tempEnKey, ref _isRecordingEn, "EN");
-                e.Handled = true;
-            }
+            if (_isRecordingRu) { HandleKeyPress(e, ref _tempRuKey, ref _isRecordingRu, "RU"); e.Handled = true; }
+            else if (_isRecordingEn) { HandleKeyPress(e, ref _tempEnKey, ref _isRecordingEn, "EN"); e.Handled = true; }
+            else if (_isRecordingVoice) { HandleWindowHotkeyKeyPress(e, ref _tempVoiceModifiers, ref _tempVoiceKey, ref _isRecordingVoice, VoiceInputBorder, TxtVoiceInput, "VoiceInput"); e.Handled = true; }
+            else if (_isRecordingTranslator) { HandleWindowHotkeyKeyPress(e, ref _tempTranslatorModifiers, ref _tempTranslatorKey, ref _isRecordingTranslator, TranslatorBorder, TxtTranslator, "Translator"); e.Handled = true; }
+            else if (_isRecordingConverter) { HandleWindowHotkeyKeyPress(e, ref _tempConverterModifiers, ref _tempConverterKey, ref _isRecordingConverter, ConverterBorder, TxtConverter, "Converter"); e.Handled = true; }
+            else if (_isRecordingScreenTranslator) { HandleWindowHotkeyKeyPress(e, ref _tempScreenTranslatorModifiers, ref _tempScreenTranslatorKey, ref _isRecordingScreenTranslator, ScreenTranslatorBorder, TxtScreenTranslator, "ScreenTranslator"); e.Handled = true; }
         }
 
         private void CenterWindowOnScreen()
@@ -79,6 +124,55 @@ namespace KeyBoopWin
             TxtConvertToEn.Text = $"Ctrl + {GetKeyName(_tempEnKey)}";
         }
 
+        private void UpdateHotkeyDisplays()
+        {
+            // ⚡ ВАЖНО: Обновляем состояние кнопок в зависимости от тумблеров
+            bool voiceEnabled = VoiceInputToggle.IsOn;
+            BtnRecordVoice.IsEnabled = voiceEnabled;
+            BtnResetVoice.IsEnabled = voiceEnabled;
+            VoiceInputBorder.Opacity = voiceEnabled ? 1.0 : 0.5;
+            TxtVoiceInput.Text = voiceEnabled ? GetHotkeyString(_tempVoiceModifiers, _tempVoiceKey) : "Не назначено";
+
+            bool translatorEnabled = TranslatorToggle.IsOn;
+            BtnRecordTranslator.IsEnabled = translatorEnabled;
+            BtnResetTranslator.IsEnabled = translatorEnabled;
+            TranslatorBorder.Opacity = translatorEnabled ? 1.0 : 0.5;
+            TxtTranslator.Text = translatorEnabled ? GetHotkeyString(_tempTranslatorModifiers, _tempTranslatorKey) : "Не назначено";
+
+            bool converterEnabled = ConverterToggle.IsOn;
+            BtnRecordConverter.IsEnabled = converterEnabled;
+            BtnResetConverter.IsEnabled = converterEnabled;
+            ConverterBorder.Opacity = converterEnabled ? 1.0 : 0.5;
+            TxtConverter.Text = converterEnabled ? GetHotkeyString(_tempConverterModifiers, _tempConverterKey) : "Не назначено";
+
+            bool screenTranslatorEnabled = ScreenTranslatorToggle.IsOn;
+            BtnRecordScreenTranslator.IsEnabled = screenTranslatorEnabled;
+            BtnResetScreenTranslator.IsEnabled = screenTranslatorEnabled;
+            ScreenTranslatorBorder.Opacity = screenTranslatorEnabled ? 1.0 : 0.5;
+            TxtScreenTranslator.Text = screenTranslatorEnabled ? GetHotkeyString(_tempScreenTranslatorModifiers, _tempScreenTranslatorKey) : "Не назначено";
+        }
+
+        private string GetHotkeyString(VirtualKeyModifiers modifiers, VirtualKey key)
+        {
+            string result = "";
+            if (modifiers.HasFlag(VirtualKeyModifiers.Control)) result += "Ctrl+";
+            if (modifiers.HasFlag(VirtualKeyModifiers.Menu)) result += "Alt+";
+            if (modifiers.HasFlag(VirtualKeyModifiers.Shift)) result += "Shift+";
+            if (modifiers.HasFlag(VirtualKeyModifiers.Windows)) result += "Win+";
+            result += key.ToString();
+            return result;
+        }
+
+        private void UpdateManualFixUI()
+        {
+            bool isEnabled = ManualFixToggle.IsOn;
+            if (BtnRecordToRu != null) BtnRecordToRu.IsEnabled = isEnabled;
+            if (BtnRecordToEn != null) BtnRecordToEn.IsEnabled = isEnabled;
+            if (BtnResetToRu != null) BtnResetToRu.IsEnabled = isEnabled;
+            if (BtnResetToEn != null) BtnResetToEn.IsEnabled = isEnabled;
+            if (ManualFixPanel != null) ManualFixPanel.Opacity = isEnabled ? 1.0 : 0.5;
+        }
+
         private void UpdateDictionaryPaths()
         {
             TxtRuDictionary.Text = _ruDictionaryPath;
@@ -86,192 +180,200 @@ namespace KeyBoopWin
             TxtBanwordDictionary.Text = _banwordDictionaryPath;
         }
 
-        // 📂 Выбор русского словаря
-        private void BrowseRuDictionary_Click(object sender, RoutedEventArgs e)
+        // === ОБРАБОТЧИКИ ТУМБЛЕРОВ ===
+        private void ManualFixToggle_Toggled(object sender, RoutedEventArgs e) => UpdateManualFixUI();
+
+        private void VoiceInputToggle_Toggled(object sender, RoutedEventArgs e)
         {
-            HandleDictionarySelection(ref _ruDictionaryPath, TxtRuDictionary, "🇷🇺 Русский словарь");
+            UpdateHotkeyDisplays();
+            ApplySettingsImmediately(); // ⚡ Сразу применяем
         }
 
-        // 📂 Выбор английского словаря
-        private void BrowseEnDictionary_Click(object sender, RoutedEventArgs e)
+        private void TranslatorToggle_Toggled(object sender, RoutedEventArgs e)
         {
-            HandleDictionarySelection(ref _enDictionaryPath, TxtEnDictionary, "🇺🇸 Английский словарь");
+            UpdateHotkeyDisplays();
+            ApplySettingsImmediately();
         }
 
-        // 📂 Выбор словаря запрещённых слов
-        private void BrowseBanwordDictionary_Click(object sender, RoutedEventArgs e)
+        private void ConverterToggle_Toggled(object sender, RoutedEventArgs e)
         {
-            HandleDictionarySelection(ref _banwordDictionaryPath, TxtBanwordDictionary, "🚫 Словарь запрещённых слов");
+            UpdateHotkeyDisplays();
+            ApplySettingsImmediately();
         }
 
-        // 🛠️ УНИВЕРСАЛЬНЫЙ МЕТОД: Выбор, подсчёт и применение
-        private void HandleDictionarySelection(ref string pathVariable, TextBox targetTextBox, string dictName)
+        private void ScreenTranslatorToggle_Toggled(object sender, RoutedEventArgs e)
         {
-            var path = ShowWin32OpenFileDialog("Text Files\0*.txt\0All Files\0*.*\0");
-            if (!string.IsNullOrEmpty(path))
+            UpdateHotkeyDisplays();
+            ApplySettingsImmediately();
+        }
+
+        private void SleepModeToggle_Toggled(object sender, RoutedEventArgs e) { }
+        private void AutoStartToggle_Toggled(object sender, RoutedEventArgs e) { }
+
+        // === ПРИМЕНЕНИЕ НАСТРОЕК СРАЗУ ===
+        private void ApplySettingsImmediately()
+        {
+            var settings = new AppSettings
             {
-                int wordCount = 0;
-                try
-                {
-                    if (File.Exists(path))
-                    {
-                        // File.ReadLines читает построчно, не загружая весь файл в память
-                        wordCount = File.ReadLines(path).Count(line => !string.IsNullOrWhiteSpace(line));
-                    }
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"❌ Ошибка чтения файла: {ex.Message}");
-                }
+                EnableManualFixHotkeys = ManualFixToggle.IsOn,
+                ConvertToRuKey = _tempRuKey,
+                ConvertToEnKey = _tempEnKey,
 
-                // Обновляем переменную и интерфейс
-                pathVariable = path;
-                targetTextBox.Text = path;
+                EnableVoiceInputHotkey = VoiceInputToggle.IsOn,
+                VoiceInputHotkeyModifiers = _tempVoiceModifiers,
+                VoiceInputHotkeyKey = _tempVoiceKey,
 
-                // Показываем уведомление (даже если wordCount == 0)
-                _ = ShowDictionaryNotificationAsync(dictName, path, wordCount);
+                EnableTranslatorHotkey = TranslatorToggle.IsOn,
+                TranslatorHotkeyModifiers = _tempTranslatorModifiers,
+                TranslatorHotkeyKey = _tempTranslatorKey,
 
-                // Сразу применяем новые словари в приложении
-                ApplyNewDictionaries();
-            }
-        }
+                EnableConverterHotkey = ConverterToggle.IsOn,
+                ConverterHotkeyModifiers = _tempConverterModifiers,
+                ConverterHotkeyKey = _tempConverterKey,
 
-        // 💬 МЕТОД УВЕДОМЛЕНИЯ
-        private async Task ShowDictionaryNotificationAsync(string dictName, string filePath, int count)
-        {
-            var dialog = new ContentDialog
-            {
-                Title = "✅ Словарь выбран",
-                Content = $"{dictName}\n\n📝 Загружено слов: {count}\n📁 Файл: {Path.GetFileName(filePath)}",
-                CloseButtonText = "OK",
-                XamlRoot = this.Content.XamlRoot
+                EnableScreenTranslatorHotkey = ScreenTranslatorToggle.IsOn,
+                ScreenTranslatorHotkeyModifiers = _tempScreenTranslatorModifiers,
+                ScreenTranslatorHotkeyKey = _tempScreenTranslatorKey,
+
+                IsSleepMode = SleepModeToggle.IsOn,
+                RuDictionaryPath = _ruDictionaryPath,
+                EnDictionaryPath = _enDictionaryPath,
+                BanwordDictionaryPath = _banwordDictionaryPath
             };
-            await dialog.ShowAsync();
+
+            SettingsManager.Save(settings);
         }
 
-        // 🛠️ НАДЁЖНЫЙ ВЫБОР ФАЙЛА ЧЕРЕЗ WIN32 API
-        private string ShowWin32OpenFileDialog(string filter)
+        // === ОБРАБОТЧИКИ КНОПОК "ИЗМЕНИТЬ" ===
+        private void RecordToRu_Click(object sender, RoutedEventArgs e)
         {
-            try
+            _isRecordingRu = true; _isRecordingEn = false; _isRecordingVoice = false; _isRecordingTranslator = false; _isRecordingConverter = false; _isRecordingScreenTranslator = false;
+            TxtConvertToRu.Text = "⌨️ Нажмите Ctrl + клавишу...";
+            TxtConvertToRu.Foreground = new SolidColorBrush(Colors.Yellow);
+        }
+
+        private void RecordToEn_Click(object sender, RoutedEventArgs e)
+        {
+            _isRecordingEn = true; _isRecordingRu = false; _isRecordingVoice = false; _isRecordingTranslator = false; _isRecordingConverter = false; _isRecordingScreenTranslator = false;
+            TxtConvertToEn.Text = "⌨️ Нажмите Ctrl + клавишу...";
+            TxtConvertToEn.Foreground = new SolidColorBrush(Colors.Yellow);
+        }
+
+        private void RecordVoiceInput_Click(object sender, RoutedEventArgs e)
+        {
+            _isRecordingVoice = true; _isRecordingRu = false; _isRecordingEn = false; _isRecordingTranslator = false; _isRecordingConverter = false; _isRecordingScreenTranslator = false;
+            TxtVoiceInput.Text = "️ Нажмите комбинацию...";
+            TxtVoiceInput.Foreground = new SolidColorBrush(Colors.Yellow);
+            VoiceInputBorder.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 165, 0));
+        }
+
+        private void RecordTranslator_Click(object sender, RoutedEventArgs e)
+        {
+            _isRecordingTranslator = true; _isRecordingRu = false; _isRecordingEn = false; _isRecordingVoice = false; _isRecordingConverter = false; _isRecordingScreenTranslator = false;
+            TxtTranslator.Text = "⌨️ Нажмите комбинацию...";
+            TxtTranslator.Foreground = new SolidColorBrush(Colors.Yellow);
+            TranslatorBorder.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 165, 0));
+        }
+
+        private void RecordConverter_Click(object sender, RoutedEventArgs e)
+        {
+            _isRecordingConverter = true; _isRecordingRu = false; _isRecordingEn = false; _isRecordingVoice = false; _isRecordingTranslator = false; _isRecordingScreenTranslator = false;
+            TxtConverter.Text = "️ Нажмите комбинацию...";
+            TxtConverter.Foreground = new SolidColorBrush(Colors.Yellow);
+            ConverterBorder.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 165, 0));
+        }
+
+        private void RecordScreenTranslator_Click(object sender, RoutedEventArgs e)
+        {
+            _isRecordingScreenTranslator = true; _isRecordingRu = false; _isRecordingEn = false; _isRecordingVoice = false; _isRecordingTranslator = false; _isRecordingConverter = false;
+            TxtScreenTranslator.Text = "⌨️ Нажмите комбинацию...";
+            TxtScreenTranslator.Foreground = new SolidColorBrush(Colors.Yellow);
+            ScreenTranslatorBorder.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 165, 0));
+        }
+
+        // === ОБРАБОТЧИКИ КНОПОК "СБРОС" ===
+        private void ResetToRu_Click(object sender, RoutedEventArgs e) { _tempRuKey = 219; UpdateTextBoxes(); ApplySettingsImmediately(); }
+        private void ResetToEn_Click(object sender, RoutedEventArgs e) { _tempEnKey = 221; UpdateTextBoxes(); ApplySettingsImmediately(); }
+        private void ResetVoiceInput_Click(object sender, RoutedEventArgs e) { _tempVoiceModifiers = VirtualKeyModifiers.None; _tempVoiceKey = VirtualKey.F1; UpdateHotkeyDisplays(); ApplySettingsImmediately(); }
+        private void ResetTranslator_Click(object sender, RoutedEventArgs e) { _tempTranslatorModifiers = VirtualKeyModifiers.None; _tempTranslatorKey = VirtualKey.F2; UpdateHotkeyDisplays(); ApplySettingsImmediately(); }
+        private void ResetConverter_Click(object sender, RoutedEventArgs e) { _tempConverterModifiers = VirtualKeyModifiers.None; _tempConverterKey = VirtualKey.F3; UpdateHotkeyDisplays(); ApplySettingsImmediately(); }
+        private void ResetScreenTranslator_Click(object sender, RoutedEventArgs e) { _tempScreenTranslatorModifiers = VirtualKeyModifiers.None; _tempScreenTranslatorKey = VirtualKey.F10; UpdateHotkeyDisplays(); ApplySettingsImmediately(); }
+
+        // === ОБРАБОТКА НАЖАТИЙ КЛАВИШ ===
+        private void HandleKeyPress(KeyRoutedEventArgs e, ref int targetKey, ref bool isRecordingFlag, string mode)
+        {
+            if (e.Key == Windows.System.VirtualKey.Control || e.Key == Windows.System.VirtualKey.Shift || e.Key == Windows.System.VirtualKey.Menu) return;
+            targetKey = GetVkCode(e.Key);
+            UpdateTextBoxes();
+            isRecordingFlag = false;
+            var greenBrush = new SolidColorBrush(Colors.LimeGreen);
+            if (mode == "RU") TxtConvertToRu.Foreground = greenBrush; else TxtConvertToEn.Foreground = greenBrush;
+            ApplySettingsImmediately();
+        }
+
+        private void HandleWindowHotkeyKeyPress(KeyRoutedEventArgs e, ref VirtualKeyModifiers modifiers, ref VirtualKey key, ref bool isRecordingFlag, Border border, TextBlock textBlock, string functionName)
+        {
+            if (e.Key == VirtualKey.Control || e.Key == VirtualKey.Shift || e.Key == VirtualKey.Menu || e.Key == VirtualKey.LeftWindows || e.Key == VirtualKey.RightWindows) return;
+
+            var newModifiers = VirtualKeyModifiers.None;
+            if ((GetAsyncKeyState(0x11) & 0x8000) != 0) newModifiers |= VirtualKeyModifiers.Control;
+            if ((GetAsyncKeyState(0x12) & 0x8000) != 0) newModifiers |= VirtualKeyModifiers.Menu;
+            if ((GetAsyncKeyState(0x10) & 0x8000) != 0) newModifiers |= VirtualKeyModifiers.Shift;
+            if ((GetAsyncKeyState(0x5B) & 0x8000) != 0 || (GetAsyncKeyState(0x5C) & 0x8000) != 0) newModifiers |= VirtualKeyModifiers.Windows;
+
+            //  ПРОВЕРКА НА КОНФЛИКТЫ
+            if (CheckHotkeyConflict(newModifiers, e.Key, functionName))
             {
-                var ofn = new OPENFILENAME
-                {
-                    lStructSize = Marshal.SizeOf<OPENFILENAME>(),
-                    hwndOwner = GetActiveWindow(),
-                    lpstrFilter = filter,
-                    lpstrFile = new string('\0', 260),
-                    nMaxFile = 260,
-                    lpstrTitle = "Выберите файл словаря",
-                    Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER
-                };
-
-                if (GetOpenFileName(ref ofn))
-                {
-                    string result = ofn.lpstrFile;
-                    int nullIndex = result.IndexOf('\0');
-                    if (nullIndex >= 0) result = result.Substring(0, nullIndex);
-
-                    System.Diagnostics.Debug.WriteLine($"📁 Выбран файл: {result}");
-                    return result;
-                }
-
-                System.Diagnostics.Debug.WriteLine("⚠️ Пользователь отменил выбор файла");
+                isRecordingFlag = false;
+                border.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 120, 212));
+                UpdateHotkeyDisplays();
+                return;
             }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"❌ Ошибка ShowWin32OpenFileDialog: {ex.Message}");
-            }
 
-            return string.Empty;
+            modifiers = newModifiers;
+            key = e.Key;
+            isRecordingFlag = false;
+            border.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 120, 212));
+            UpdateHotkeyDisplays();
+            ApplySettingsImmediately();
         }
 
-        // 🔄 ПРИМЕНЕНИЕ НОВЫХ СЛОВАРЕЙ (ОДИН РАЗ!)
-        private void ApplyNewDictionaries()
+        // ⚡ ПРОВЕРКА КОНФЛИКТОВ ХОТКЕЕВ
+        private bool CheckHotkeyConflict(VirtualKeyModifiers modifiers, VirtualKey key, string currentFunction)
         {
-            System.Diagnostics.Debug.WriteLine($"🔄 Применение новых путей к словарям...");
-            DictionaryManager.ReloadDictionaries(_ruDictionaryPath, _enDictionaryPath, _banwordDictionaryPath);
-        }
+            // Собираем все активные хоткеи
+            var hotkeys = new System.Collections.Generic.Dictionary<string, (VirtualKeyModifiers Modifiers, VirtualKey Key)>();
 
-        private async void UpdateDictionariesFromGitHub_Click(object sender, RoutedEventArgs e)
-        {
-            var btn = (Button)sender;
-            var originalContent = btn.Content;
-            btn.Content = "⏳ Загрузка...";
-            btn.IsEnabled = false;
+            if (VoiceInputToggle.IsOn && currentFunction != "VoiceInput")
+                hotkeys["Голосовой ввод"] = (_tempVoiceModifiers, _tempVoiceKey);
 
-            try
+            if (TranslatorToggle.IsOn && currentFunction != "Translator")
+                hotkeys["Переводчик"] = (_tempTranslatorModifiers, _tempTranslatorKey);
+
+            if (ConverterToggle.IsOn && currentFunction != "Converter")
+                hotkeys["Конвертер регистров"] = (_tempConverterModifiers, _tempConverterKey);
+
+            if (ScreenTranslatorToggle.IsOn && currentFunction != "ScreenTranslator")
+                hotkeys["Экранный переводчик"] = (_tempScreenTranslatorModifiers, _tempScreenTranslatorKey);
+
+            // Проверяем конфликт
+            foreach (var kvp in hotkeys)
             {
-                string baseUrl = "https://raw.githubusercontent.com/C7AY/keyboopWin/Windows/Dictionaries/";
-                string[] files = { "ru.txt", "en.txt", "banword.txt" };
-
-                string appPath = AppDomain.CurrentDomain.BaseDirectory;
-                string dictionariesPath = Path.Combine(appPath, "Dictionaries");
-
-                if (!Directory.Exists(dictionariesPath))
+                if (kvp.Value.Modifiers == modifiers && kvp.Value.Key == key)
                 {
-                    Directory.CreateDirectory(dictionariesPath);
-                }
-
-                using (HttpClient client = new HttpClient())
-                {
-                    foreach (var fileName in files)
+                    var dialog = new ContentDialog
                     {
-                        try
-                        {
-                            string url = baseUrl + fileName;
-                            string content = await client.GetStringAsync(url);
-                            string filePath = Path.Combine(dictionariesPath, fileName);
-                            await File.WriteAllTextAsync(filePath, content);
-                        }
-                        catch (Exception ex)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"❌ Ошибка загрузки {fileName}: {ex.Message}");
-                        }
-                    }
+                        Title = "⚠️ Конфликт горячей клавиши",
+                        Content = $"Комбинация {GetHotkeyString(modifiers, key)} уже используется функцией \"{kvp.Key}\".\n\nВыберите другую комбинацию.",
+                        CloseButtonText = "OK",
+                        XamlRoot = this.Content.XamlRoot
+                    };
+                    _ = dialog.ShowAsync();
+                    return true;
                 }
-
-                _ruDictionaryPath = "Dictionaries\\ru.txt";
-                _enDictionaryPath = "Dictionaries\\en.txt";
-                _banwordDictionaryPath = "Dictionaries\\banword.txt";
-                UpdateDictionaryPaths();
-
-                // Перезагружаем словари после скачивания
-                ApplyNewDictionaries();
-
-                var dialog = new ContentDialog
-                {
-                    Title = "✅ Обновление завершено",
-                    Content = "Словари успешно обновлены с GitHub!",
-                    CloseButtonText = "OK",
-                    XamlRoot = this.Content.XamlRoot
-                };
-                await dialog.ShowAsync();
             }
-            catch (Exception ex)
-            {
-                var dialog = new ContentDialog
-                {
-                    Title = "❌ Ошибка обновления",
-                    Content = $"Не удалось обновить словари:\n{ex.Message}",
-                    CloseButtonText = "OK",
-                    XamlRoot = this.Content.XamlRoot
-                };
-                await dialog.ShowAsync();
-            }
-            finally
-            {
-                btn.Content = originalContent;
-                btn.IsEnabled = true;
-            }
-        }
 
-        private void ApplyHotkeysToHook()
-        {
-            if (App.Current is App app && app.KeyboardHook != null)
-            {
-                app.KeyboardHook.ConvertToRuKey = _tempRuKey;
-                app.KeyboardHook.ConvertToEnKey = _tempEnKey;
-            }
+            return false;
         }
 
         private int GetVkCode(Windows.System.VirtualKey key) => (int)key;
@@ -294,128 +396,159 @@ namespace KeyBoopWin
             };
         }
 
-        private void RecordToRu_Click(object sender, RoutedEventArgs e)
+        // === СЛОВАРИ ===
+        private void BrowseRuDictionary_Click(object sender, RoutedEventArgs e) => HandleDictionarySelection(ref _ruDictionaryPath, TxtRuDictionary, "🇺 Русский словарь");
+        private void BrowseEnDictionary_Click(object sender, RoutedEventArgs e) => HandleDictionarySelection(ref _enDictionaryPath, TxtEnDictionary, "🇺🇸 Английский словарь");
+        private void BrowseBanwordDictionary_Click(object sender, RoutedEventArgs e) => HandleDictionarySelection(ref _banwordDictionaryPath, TxtBanwordDictionary, "🚫 Словарь запрещённых слов");
+
+        private void HandleDictionarySelection(ref string pathVariable, TextBox targetTextBox, string dictName)
         {
-            _isRecordingRu = true;
-            _isRecordingEn = false;
-            TxtConvertToRu.Text = "⌨️ Нажмите Ctrl + клавишу...";
-            TxtConvertToRu.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Colors.Yellow);
+            var path = ShowWin32OpenFileDialog("Text Files\0*.txt\0All Files\0*.*\0");
+            if (!string.IsNullOrEmpty(path))
+            {
+                int wordCount = 0;
+                try
+                {
+                    if (File.Exists(path)) wordCount = File.ReadLines(path).Count(line => !string.IsNullOrWhiteSpace(line));
+                }
+                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"❌ Ошибка чтения файла: {ex.Message}"); }
+
+                pathVariable = path;
+                targetTextBox.Text = path;
+                _ = ShowDictionaryNotificationAsync(dictName, path, wordCount);
+                ApplyNewDictionaries();
+            }
         }
 
-        private void RecordToEn_Click(object sender, RoutedEventArgs e)
+        private async Task ShowDictionaryNotificationAsync(string dictName, string filePath, int count)
         {
-            _isRecordingEn = true;
-            _isRecordingRu = false;
-            TxtConvertToEn.Text = "⌨️ Нажмите Ctrl + клавишу...";
-            TxtConvertToEn.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Colors.Yellow);
+            var dialog = new ContentDialog { Title = "✅ Словарь выбран", Content = $"{dictName}\n\n Загружено слов: {count}\n Файл: {Path.GetFileName(filePath)}", CloseButtonText = "OK", XamlRoot = this.Content.XamlRoot };
+            await dialog.ShowAsync();
         }
 
-        private void HandleKeyPress(KeyRoutedEventArgs e, ref int targetKey, ref bool isRecordingFlag, string mode)
+        private string ShowWin32OpenFileDialog(string filter)
         {
-            if (e.Key == Windows.System.VirtualKey.Control || e.Key == Windows.System.VirtualKey.Shift || e.Key == Windows.System.VirtualKey.Menu)
-                return;
+            try
+            {
+                var ofn = new OPENFILENAME
+                {
+                    lStructSize = Marshal.SizeOf<OPENFILENAME>(),
+                    hwndOwner = GetActiveWindow(),
+                    lpstrFilter = filter,
+                    lpstrFile = new string('\0', 260),
+                    nMaxFile = 260,
+                    lpstrTitle = "Выберите файл словаря",
+                    Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER
+                };
 
-            targetKey = GetVkCode(e.Key);
-            UpdateTextBoxes();
-            isRecordingFlag = false;
-
-            var greenBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Colors.LimeGreen);
-            if (mode == "RU") TxtConvertToRu.Foreground = greenBrush;
-            else TxtConvertToEn.Foreground = greenBrush;
-
-            ApplyHotkeysToHook();
+                if (GetOpenFileName(ref ofn))
+                {
+                    string result = ofn.lpstrFile;
+                    int nullIndex = result.IndexOf('\0');
+                    if (nullIndex >= 0) result = result.Substring(0, nullIndex);
+                    return result;
+                }
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"❌ Ошибка ShowWin32OpenFileDialog: {ex.Message}"); }
+            return string.Empty;
         }
 
-        private void ResetToRu_Click(object sender, RoutedEventArgs e)
+        private void ApplyNewDictionaries() => DictionaryManager.ReloadDictionaries(_ruDictionaryPath, _enDictionaryPath, _banwordDictionaryPath);
+
+        private async void UpdateDictionariesFromGitHub_Click(object sender, RoutedEventArgs e)
         {
-            _tempRuKey = 219;
-            UpdateTextBoxes();
-            ApplyHotkeysToHook();
+            var btn = (Button)sender;
+            var originalContent = btn.Content;
+            btn.Content = "⏳ Загрузка...";
+            btn.IsEnabled = false;
+
+            try
+            {
+                string baseUrl = "https://raw.githubusercontent.com/C7AY/keyboopWin/Windows/Dictionaries/";
+                string[] files = { "ru.txt", "en.txt", "banword.txt" };
+                string appPath = AppDomain.CurrentDomain.BaseDirectory;
+                string dictionariesPath = Path.Combine(appPath, "Dictionaries");
+
+                if (!Directory.Exists(dictionariesPath)) Directory.CreateDirectory(dictionariesPath);
+
+                using (HttpClient client = new HttpClient())
+                {
+                    foreach (var fileName in files)
+                    {
+                        try
+                        {
+                            string url = baseUrl + fileName;
+                            string content = await client.GetStringAsync(url);
+                            string filePath = Path.Combine(dictionariesPath, fileName);
+                            await File.WriteAllTextAsync(filePath, content);
+                        }
+                        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"❌ Ошибка загрузки {fileName}: {ex.Message}"); }
+                    }
+                }
+
+                _ruDictionaryPath = "Dictionaries\\ru.txt";
+                _enDictionaryPath = "Dictionaries\\en.txt";
+                _banwordDictionaryPath = "Dictionaries\\banword.txt";
+                UpdateDictionaryPaths();
+                ApplyNewDictionaries();
+
+                var dialog = new ContentDialog { Title = "✅ Обновление завершено", Content = "Словари успешно обновлены с GitHub!", CloseButtonText = "OK", XamlRoot = this.Content.XamlRoot };
+                await dialog.ShowAsync();
+            }
+            catch (Exception ex)
+            {
+                var dialog = new ContentDialog { Title = "❌ Ошибка обновления", Content = $"Не удалось обновить словари:\n{ex.Message}", CloseButtonText = "OK", XamlRoot = this.Content.XamlRoot };
+                await dialog.ShowAsync();
+            }
+            finally
+            {
+                btn.Content = originalContent;
+                btn.IsEnabled = true;
+            }
         }
 
-        private void ResetToEn_Click(object sender, RoutedEventArgs e)
-        {
-            _tempEnKey = 221;
-            UpdateTextBoxes();
-            ApplyHotkeysToHook();
-        }
-
-        private void SleepMode_Toggled(object sender, RoutedEventArgs e) { }
-
+        // === СОХРАНЕНИЕ ===
         private void Save_Click(object sender, RoutedEventArgs e)
         {
-            _currentSettings.ConvertToRuKey = _tempRuKey;
-            _currentSettings.ConvertToEnKey = _tempEnKey;
-            _currentSettings.IsSleepMode = SleepModeToggle.IsOn;
+            ApplySettingsImmediately();
+            SettingsManager.SetAutoStart(AutoStartToggle.IsOn);
 
-            //  ПРЕОБРАЗУЕМ ОТНОСИТЕЛЬНЫЕ ПУТИ В АБСОЛЮТНЫЕ
-            _currentSettings.RuDictionaryPath = ConvertToAbsolutePath(_ruDictionaryPath);
-            _currentSettings.EnDictionaryPath = ConvertToAbsolutePath(_enDictionaryPath);
-            _currentSettings.BanwordDictionaryPath = ConvertToAbsolutePath(_banwordDictionaryPath);
+            // Применяем изменения к хуку
+            if (App.Current is App app && app.KeyboardHook != null)
+            {
+                app.KeyboardHook.ConvertToRuKey = _tempRuKey;
+                app.KeyboardHook.ConvertToEnKey = _tempEnKey;
+                app.KeyboardHook.SetEnabled(!SleepModeToggle.IsOn);
+            }
 
-            SettingsManager.Save(_currentSettings);
             this.Close();
         }
 
-        // 🛠️ МЕТОД: Преобразует относительный путь в абсолютный
         private string ConvertToAbsolutePath(string path)
         {
-            if (string.IsNullOrEmpty(path))
-                return path;
-
-            // Если путь уже абсолютный — возвращаем как есть
-            if (Path.IsPathRooted(path))
-                return path;
-
-            // Если путь относительный — делаем его абсолютным относительно папки с exe
-            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            return Path.Combine(baseDir, path);
+            if (string.IsNullOrEmpty(path)) return path;
+            if (Path.IsPathRooted(path)) return path;
+            return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path);
         }
 
-        private void Cancel_Click(object sender, RoutedEventArgs e)
-        {
-            this.Close();
-        }
+        private void Cancel_Click(object sender, RoutedEventArgs e) { this.Close(); }
 
-        // ==========================================
-        // ⚡ WIN32 API ДЛЯ ДИАЛОГА ОТКРЫТИЯ ФАЙЛА
-        // ==========================================
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
         private struct OPENFILENAME
         {
-            public int lStructSize;
-            public IntPtr hwndOwner;
-            public IntPtr hInstance;
-            public string lpstrFilter;
-            public string lpstrCustomFilter;
-            public int nMaxCustFilter;
-            public int nFilterIndex;
-            public string lpstrFile;
-            public int nMaxFile;
-            public string lpstrFileTitle;
-            public int nMaxFileTitle;
-            public string lpstrInitialDir;
-            public string lpstrTitle;
-            public int Flags;
-            public short nFileOffset;
-            public short nFileExtension;
-            public string lpstrDefExt;
-            public IntPtr lCustData;
-            public IntPtr lpfnHook;
-            public string lpTemplateName;
-            public IntPtr pvReserved;
-            public int dwReserved;
-            public int FlagsEx;
+            public int lStructSize; public IntPtr hwndOwner; public IntPtr hInstance; public string lpstrFilter;
+            public string lpstrCustomFilter; public int nMaxCustFilter; public int nFilterIndex; public string lpstrFile;
+            public int nMaxFile; public string lpstrFileTitle; public int nMaxFileTitle; public string lpstrInitialDir;
+            public string lpstrTitle; public int Flags; public short nFileOffset; public short nFileExtension;
+            public string lpstrDefExt; public IntPtr lCustData; public IntPtr lpfnHook; public string lpTemplateName;
+            public IntPtr pvReserved; public int dwReserved; public int FlagsEx;
         }
 
         private const int OFN_FILEMUSTEXIST = 0x00001000;
         private const int OFN_PATHMUSTEXIST = 0x00000800;
         private const int OFN_EXPLORER = 0x00080000;
 
-        [DllImport("user32.dll")]
-        private static extern IntPtr GetActiveWindow();
-
-        [DllImport("comdlg32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-        private static extern bool GetOpenFileName(ref OPENFILENAME ofn);
+        [DllImport("user32.dll")] private static extern IntPtr GetActiveWindow();
+        [DllImport("comdlg32.dll", CharSet = CharSet.Auto, SetLastError = true)] private static extern bool GetOpenFileName(ref OPENFILENAME ofn);
     }
 }

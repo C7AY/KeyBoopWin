@@ -10,6 +10,9 @@ namespace KeyBoopWin
         public int ConvertToRuKey { get; set; } = 219;
         public int ConvertToEnKey { get; set; } = 221;
 
+        // ⚡ ФЛАГ ВКЛЮЧЕНИЯ/ВЫКЛЮЧЕНИЯ ХУКА
+        private bool _isEnabled = true;
+
         public event EventHandler<bool>? ManualConvertRequested;
 
         private const int WH_KEYBOARD_LL = 13;
@@ -19,7 +22,6 @@ namespace KeyBoopWin
         private IntPtr _hookId = IntPtr.Zero;
         private LowLevelKeyboardProc _proc;
         private readonly HashSet<int> _pressedKeys = new HashSet<int>();
-
         private readonly List<int> _vkBuffer = new List<int>();
         private readonly object _lock = new object();
         private int _lastWordStart = 0;
@@ -31,6 +33,13 @@ namespace KeyBoopWin
         {
             _proc = HookCallback;
             _hookId = SetHook(_proc);
+        }
+
+        // ⚡ НОВЫЙ МЕТОД: Включение/выключение хука
+        public void SetEnabled(bool enabled)
+        {
+            _isEnabled = enabled;
+            System.Diagnostics.Debug.WriteLine($" GlobalKeyboardHook: {(enabled ? "ВКЛЮЧЕН" : "ВЫКЛЮЧЕН")}");
         }
 
         private IntPtr SetHook(LowLevelKeyboardProc proc)
@@ -45,6 +54,12 @@ namespace KeyBoopWin
 
         private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
+            // ⚡ ПРОВЕРКА: если хук выключен (спящий режим), пропускаем всё дальше
+            if (!_isEnabled)
+            {
+                return CallNextHookEx(_hookId, nCode, wParam, lParam);
+            }
+
             if (nCode < 0) return CallNextHookEx(_hookId, nCode, wParam, lParam);
 
             int vkCode = Marshal.ReadInt32(lParam);
@@ -77,20 +92,18 @@ namespace KeyBoopWin
                 {
                     _pressedKeys.Add(vkCode);
 
-                    // ⚡ ПРОВЕРКА: если нажат Ctrl или Alt — это горячая клавиша, не добавляем в буфер
-                    bool isModifierPressed = _pressedKeys.Contains(0x11) || // Ctrl
-                                             _pressedKeys.Contains(0xA2) || // Left Ctrl
-                                             _pressedKeys.Contains(0xA3) || // Right Ctrl
-                                             _pressedKeys.Contains(0x12) || // Alt
-                                             _pressedKeys.Contains(0xA4) || // Left Alt
-                                             _pressedKeys.Contains(0xA5);   // Right Alt
+                    bool isModifierPressed = _pressedKeys.Contains(0x11) ||
+                                             _pressedKeys.Contains(0xA2) ||
+                                             _pressedKeys.Contains(0xA3) ||
+                                             _pressedKeys.Contains(0x12) ||
+                                             _pressedKeys.Contains(0xA4) ||
+                                             _pressedKeys.Contains(0xA5);
 
                     if (!isModifierPressed && IsPrintableKey(vkCode, out char boundaryChar))
                     {
                         lock (_lock)
                         {
                             _vkBuffer.Add(vkCode);
-
                             if (boundaryChar == ' ' || boundaryChar == '\n' || boundaryChar == '\r')
                             {
                                 LastBoundaryChar = boundaryChar;
@@ -110,7 +123,6 @@ namespace KeyBoopWin
                 _pressedKeys.Remove(vkCode);
             }
 
-            // ⚡ 3. ОБЯЗАТЕЛЬНЫЙ ВОЗВРАТ ЗНАЧЕНИЯ В КОНЦЕ МЕТОДА
             return CallNextHookEx(_hookId, nCode, wParam, lParam);
         }
 
@@ -119,16 +131,14 @@ namespace KeyBoopWin
             boundaryChar = '\0';
             if (vkCode == 32) { boundaryChar = ' '; return true; }
             if (vkCode == 13) { boundaryChar = '\n'; return true; }
-            if (vkCode >= 65 && vkCode <= 90) return true; // A-Z
-
-            if (vkCode == 219) return true; // [  (русская х)
-            if (vkCode == 221) return true; // ]  (русская ъ)
-            if (vkCode == 186) return true; // ;  (русская ж)
-            if (vkCode == 222) return true; // '  (русская э)
-            if (vkCode == 188) return true; // ,  (русская б)
-            if (vkCode == 190) return true; // .  (русская ю)
-            if (vkCode == 192) return true; // `  (русская ё)
-
+            if (vkCode >= 65 && vkCode <= 90) return true;
+            if (vkCode == 219) return true;
+            if (vkCode == 221) return true;
+            if (vkCode == 186) return true;
+            if (vkCode == 222) return true;
+            if (vkCode == 188) return true;
+            if (vkCode == 190) return true;
+            if (vkCode == 192) return true;
             return false;
         }
 
@@ -153,9 +163,16 @@ namespace KeyBoopWin
 
         private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 
-        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)] private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
-        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)] private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
-        [DllImport("user32.dll", SetLastError = true)] private static extern bool UnhookWindowsHookEx(IntPtr hhk);
-        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)] private static extern IntPtr GetModuleHandle(string lpModuleName);
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr GetModuleHandle(string lpModuleName);
     }
 }

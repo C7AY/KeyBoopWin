@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading.Tasks;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
@@ -7,6 +8,8 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.Storage.Streams;
 using Windows.UI;
 using WinRT.Interop;
 
@@ -15,51 +18,61 @@ namespace KeyBoopWin
     public sealed partial class OverlayWindow : Window
     {
         [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll")]
         private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
         private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
         private const uint SWP_SHOWWINDOW = 0x0040;
-        private const uint SWP_NOACTIVATE = 0x0010;
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_NOSIZE = 0x0001;
+        private const int SW_MAXIMIZE = 3;
 
         private TaskCompletionSource<bool>? _closeTcs;
 
         public OverlayWindow()
         {
+            this.SystemBackdrop = null;
+
             this.InitializeComponent();
 
             var presenter = this.AppWindow.Presenter as OverlappedPresenter;
-            presenter?.SetBorderAndTitleBar(false, false);
+            if (presenter != null)
+            {
+                presenter.IsResizable = false;
+                presenter.IsAlwaysOnTop = true;
+                presenter.SetBorderAndTitleBar(false, false);
+            }
 
-            // ⚡ Делаем фон ПОЛНОСТЬЮ прозрачным
             RootGrid.Background = new SolidColorBrush(Colors.Transparent);
 
             RootGrid.KeyDown += OnKeyDown;
         }
 
-        public async Task ShowAndHideAsync()
+        // ⚡ ГЛАВНЫЙ МЕТОД: показывает окно со скриншотом на фоне и ждет Esc
+        public async Task ShowTranslationWithBackgroundAsync(byte[] screenshotBytes, int width, int height)
         {
             _closeTcs = new TaskCompletionSource<bool>();
 
-            var displayArea = DisplayArea.Primary;
+            // Устанавливаем скриншот как фон
+            var bitmap = new BitmapImage();
+            using (var stream = new InMemoryRandomAccessStream())
+            {
+                await stream.WriteAsync(screenshotBytes.AsBuffer());
+                stream.Seek(0);
+                await bitmap.SetSourceAsync(stream);
+            }
+            BackgroundImage.Source = bitmap;
 
-            // ⚡ Сначала устанавливаем размер
-            var newSize = new Windows.Graphics.SizeInt32((int)displayArea.OuterBounds.Width, (int)displayArea.OuterBounds.Height);
-            var newPosition = new Windows.Graphics.PointInt32((int)displayArea.OuterBounds.X, (int)displayArea.OuterBounds.Y);
-
-            this.AppWindow.Resize(newSize);
-            this.AppWindow.Move(newPosition);
-
-            // ⚡ Показываем окно поверх всех
             var hwnd = WindowNative.GetWindowHandle(this);
-            SetWindowPos(hwnd, HWND_TOPMOST,
-                (int)displayArea.OuterBounds.X,
-                (int)displayArea.OuterBounds.Y,
-                (int)displayArea.OuterBounds.Width,
-                (int)displayArea.OuterBounds.Height,
-                SWP_SHOWWINDOW | SWP_NOACTIVATE);
+
+            ShowWindow(hwnd, SW_MAXIMIZE);
+            SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE);
 
             this.Activate();
 
+            // Ждем, пока пользователь нажмет Esc
             await _closeTcs.Task;
 
             this.AppWindow.Hide();

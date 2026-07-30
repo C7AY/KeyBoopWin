@@ -13,51 +13,136 @@
 
         <TextBlock Grid.Row="0" Text="⚙️ Настройки" FontSize="24" FontWeight="Bold" Margin="0,0,0,20"/>
 
-        <!-- ⚡ Добавили Padding справа чтобы скролл не перекрывал контент -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,30,0">
-            <!-- ⚡ Один StackPanel содержит всё содержимое ScrollViewer -->
             <StackPanel Spacing="25">
 
-                <Border Background="#1e1e1e" Padding="15" CornerRadius="8" BorderBrush="Gray" BorderThickness="2">
-                    <TextBlock Text="⚠️ Внимание: выбранные комбинации будут перехватываться программой глобально. Избегайте системных сочетаний (например, Ctrl+C), иначе они перестанут работать в других приложениях." 
-                               TextWrapping="Wrap" Foreground="WhiteSmoke" FontSize="13"/>
+                <!-- ВЕРХНЕЕ ПРЕДУПРЕЖДЕНИЕ С ПЕРЕНОСОМ СТРОКИ -->
+                <Border Background="#1e1e1e" Padding="15" CornerRadius="8" BorderBrush="#59595d" BorderThickness="2">
+                    <TextBlock TextWrapping="Wrap" Foreground="White" FontSize="13">
+                        <Run Text="⚠️ Внимание: выбранные комбинации будут перехватываться программой глобально."/>
+                        <LineBreak/>
+                        <Run Text="Избегайте системных сочетаний (например, Ctrl+C), иначе они перестанут работать в других приложениях."/>
+                    </TextBlock>
                 </Border>
 
+                <!-- === СЕКЦИЯ: Ручное исправление === -->
                 <StackPanel Spacing="15">
-                    <TextBlock Text="⌨️ Горячие клавиши (Ручное исправление) выделенный текст" FontSize="16" FontWeight="SemiBold"/>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="⌨️ Ручное исправление выделенного текста" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        <ToggleSwitch x:Name="ManualFixToggle" IsOn="True" Toggled="ManualFixToggle_Toggled" VerticalAlignment="Center"/>
+                    </StackPanel>
 
-                    <!-- Перевести кракозябры -->
+                    <StackPanel x:Name="ManualFixPanel" Spacing="8">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Перевести кракозябры (в правильную раскладку)" FontWeight="SemiBold"/>
+                            <Grid ColumnDefinitions="Auto, *, Auto">
+                                <Button Grid.Column="0" x:Name="BtnRecordToRu" Content="⌨️ Изменить" Click="RecordToRu_Click" Height="40" Width="120"/>
+                                <Border Grid.Column="1" Background="#0078D4" CornerRadius="4" Height="40" Margin="15,0,15,0">
+                                    <TextBlock x:Name="TxtConvertToRu" Text="Ctrl + [" Foreground="White" Padding="10,12" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                                </Border>
+                                <Button Grid.Column="2" x:Name="BtnResetToRu" Content="🔄 Стандартный" Click="ResetToRu_Click" Height="40"/>
+                            </Grid>
+                        </StackPanel>
+
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Вернуть кракозябры (как было)" FontWeight="SemiBold"/>
+                            <Grid ColumnDefinitions="Auto, *, Auto">
+                                <Button Grid.Column="0" x:Name="BtnRecordToEn" Content="⌨️ Изменить" Click="RecordToEn_Click" Height="40" Width="120"/>
+                                <Border Grid.Column="1" Background="#0078D4" CornerRadius="4" Height="40" Margin="15,0,15,0">
+                                    <TextBlock x:Name="TxtConvertToEn" Text="Ctrl + ]" Foreground="White" Padding="10,12" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                                </Border>
+                                <Button Grid.Column="2" x:Name="BtnResetToEn" Content="🔄 Стандартный" Click="ResetToEn_Click" Height="40"/>
+                            </Grid>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- === СЕКЦИЯ: Горячие клавиши для открытия окон === -->
+                <StackPanel Spacing="15">
+                    <TextBlock Text=" Горячие клавиши для открытия окон" FontSize="16" FontWeight="SemiBold"/>
+
+                    <!-- Голосовой ввод -->
                     <StackPanel Spacing="8">
-                        <TextBlock Text="Перевести кракозябры (в правильную раскладку)" FontWeight="SemiBold"/>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="🎤 Голосовой ввод" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <ToggleSwitch x:Name="VoiceInputToggle" IsOn="False" Toggled="VoiceInputToggle_Toggled" VerticalAlignment="Center"/>
+                        </StackPanel>
                         <Grid ColumnDefinitions="Auto, *, Auto">
-                            <Button Grid.Column="0" Content="✏️ Изменить" Click="RecordToRu_Click" Height="40" Width="120"/>
-                            <Border Grid.Column="1" Background="#1e1e1e" CornerRadius="4" Height="40" Margin="15,0,15,0">
-                                <TextBlock x:Name="TxtConvertToRu" Text="Ctrl + [" Foreground="#00FF00" Padding="10,12" FontSize="14" VerticalAlignment="Center"/>
+                            <Button Grid.Column="0" x:Name="BtnRecordVoice" Content="⌨️ Изменить" Click="RecordVoiceInput_Click" Height="40" Width="120" IsEnabled="False"/>
+                            <Border Grid.Column="1" x:Name="VoiceInputBorder" Background="#0078D4" CornerRadius="4" Height="40" Margin="15,0,15,0" Opacity="0.5">
+                                <TextBlock x:Name="TxtVoiceInput" Text="Не назначено" Foreground="White" Padding="10,12" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center" FontWeight="SemiBold"/>
                             </Border>
-                            <Button Grid.Column="2" Content="🔄 Стандартный" Click="ResetToRu_Click" Height="40"/>
+                            <Button Grid.Column="2" x:Name="BtnResetVoice" Content="🔄 Сброс" Click="ResetVoiceInput_Click" Height="40" IsEnabled="False"/>
                         </Grid>
                     </StackPanel>
 
-                    <!-- Вернуть кракозябры -->
+                    <!-- Переводчик -->
                     <StackPanel Spacing="8">
-                        <TextBlock Text="Вернуть кракозябры (как было)" FontWeight="SemiBold"/>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="🌐 Переводчик" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <ToggleSwitch x:Name="TranslatorToggle" IsOn="False" Toggled="TranslatorToggle_Toggled" VerticalAlignment="Center"/>
+                        </StackPanel>
                         <Grid ColumnDefinitions="Auto, *, Auto">
-                            <Button Grid.Column="0" Content="✏️ Изменить" Click="RecordToEn_Click" Height="40" Width="120"/>
-                            <Border Grid.Column="1" Background="#1e1e1e" CornerRadius="4" Height="40" Margin="15,0,15,0">
-                                <TextBlock x:Name="TxtConvertToEn" Text="Ctrl + ]" Foreground="#00FF00" Padding="10,12" FontSize="14" VerticalAlignment="Center"/>
+                            <Button Grid.Column="0" x:Name="BtnRecordTranslator" Content="⌨️ Изменить" Click="RecordTranslator_Click" Height="40" Width="120" IsEnabled="False"/>
+                            <Border Grid.Column="1" x:Name="TranslatorBorder" Background="#0078D4" CornerRadius="4" Height="40" Margin="15,0,15,0" Opacity="0.5">
+                                <TextBlock x:Name="TxtTranslator" Text="Не назначено" Foreground="White" Padding="10,12" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center" FontWeight="SemiBold"/>
                             </Border>
-                            <Button Grid.Column="2" Content="🔄 Стандартный" Click="ResetToEn_Click" Height="40"/>
+                            <Button Grid.Column="2" x:Name="BtnResetTranslator" Content="🔄 Сброс" Click="ResetTranslator_Click" Height="40" IsEnabled="False"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- Конвертер регистров -->
+                    <StackPanel Spacing="8">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="🔤 Конвертер регистров" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <ToggleSwitch x:Name="ConverterToggle" IsOn="False" Toggled="ConverterToggle_Toggled" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <Grid ColumnDefinitions="Auto, *, Auto">
+                            <Button Grid.Column="0" x:Name="BtnRecordConverter" Content="⌨️ Изменить" Click="RecordConverter_Click" Height="40" Width="120" IsEnabled="False"/>
+                            <Border Grid.Column="1" x:Name="ConverterBorder" Background="#0078D4" CornerRadius="4" Height="40" Margin="15,0,15,0" Opacity="0.5">
+                                <TextBlock x:Name="TxtConverter" Text="Не назначено" Foreground="White" Padding="10,12" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                            </Border>
+                            <Button Grid.Column="2" x:Name="BtnResetConverter" Content="🔄 Сброс" Click="ResetConverter_Click" Height="40" IsEnabled="False"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- Экранный переводчик -->
+                    <StackPanel Spacing="8">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="📺 Экранный переводчик" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <ToggleSwitch x:Name="ScreenTranslatorToggle" IsOn="False" Toggled="ScreenTranslatorToggle_Toggled" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <Border Background="#1e1e1e" Padding="12" CornerRadius="8" BorderBrush="#59595d" BorderThickness="2" Margin="0,5,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="⚠️" FontSize="16" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="Чтобы закрыть окно переводчика — нажмите ESC" FontSize="13" Foreground="White" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                        <Grid ColumnDefinitions="Auto, *, Auto">
+                            <Button Grid.Column="0" x:Name="BtnRecordScreenTranslator" Content="⌨️ Изменить" Click="RecordScreenTranslator_Click" Height="40" Width="120" IsEnabled="False"/>
+                            <Border Grid.Column="1" x:Name="ScreenTranslatorBorder" Background="#0078D4" CornerRadius="4" Height="40" Margin="15,0,15,0" Opacity="0.5">
+                                <TextBlock x:Name="TxtScreenTranslator" Text="Не назначено" Foreground="White" Padding="10,12" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                            </Border>
+                            <Button Grid.Column="2" x:Name="BtnResetScreenTranslator" Content="🔄 Сброс" Click="ResetScreenTranslator_Click" Height="40" IsEnabled="False"/>
                         </Grid>
                     </StackPanel>
                 </StackPanel>
 
-                <StackPanel Spacing="15" Opacity="0.7">
-                    <TextBlock Text="🌙 Режим работы" FontSize="16" FontWeight="SemiBold"/>
-                    <ToggleSwitch x:Name="SleepModeToggle" Header="Спящий режим (приостановить перехват клавиатуры)" IsOn="False" Toggled="SleepMode_Toggled"/>
-                    <TextBlock Text="В следующей версии программа сможет полностью отключать хук, экономя ресурсы." FontSize="12" Foreground="Gray"/>
+                <!-- === СЕКЦИЯ: Спящий режим === -->
+                <StackPanel Spacing="15">
+                    <TextBlock Text="💤 Спящий режим" FontSize="16" FontWeight="SemiBold"/>
+                    <ToggleSwitch x:Name="SleepModeToggle" Header="Приостановить все действия программы (хук, хоткеи, автозамену)" IsOn="False" Toggled="SleepModeToggle_Toggled"/>
+                    <TextBlock Text="В спящем режиме программа не потребляет ресурсы на обработку, но остаётся запущенной. Можно переключить через трей." FontSize="12" Foreground="Gray" TextWrapping="Wrap"/>
                 </StackPanel>
 
-                <!-- === СЕКЦИЯ: УПРАВЛЕНИЕ СЛОВАРЯМИ === -->
+                <!-- === СЕКЦИЯ: Автозагрузка === -->
+                <StackPanel Spacing="15">
+                    <TextBlock Text=" Автозагрузка" FontSize="16" FontWeight="SemiBold"/>
+                    <ToggleSwitch x:Name="AutoStartToggle" Header="Запускать программу при включении компьютера" IsOn="False" Toggled="AutoStartToggle_Toggled"/>
+                    <TextBlock Text="При автозапуске программа сразу сворачивается в трей, не открывая окна." FontSize="12" Foreground="Gray" TextWrapping="Wrap"/>
+                </StackPanel>
+
+                <!-- === СЕКЦИЯ: Управление словарями === -->
                 <StackPanel Spacing="15" Margin="0,10,0,0">
                     <TextBlock Text="📚 Управление словарями" FontSize="16" FontWeight="SemiBold"/>
 
@@ -90,7 +175,6 @@
                 </StackPanel>
 
             </StackPanel>
-            <!-- ⚡ Закрываем StackPanel здесь, внутри ScrollViewer -->
         </ScrollViewer>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0" Spacing="10">

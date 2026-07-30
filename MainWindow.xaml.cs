@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.ObjectModel;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Windows.System;
 
 namespace KeyBoopWin
 {
@@ -12,20 +14,26 @@ namespace KeyBoopWin
         private SpeechRecognizer? _speechRecognizer;
         private MicrophonePreview? _micPreview;
         private bool _isPreviewing = false;
-
         public ObservableCollection<HistoryItem> SessionHistory { get; set; } = new();
+
+        private Microsoft.UI.Dispatching.DispatcherQueueTimer? _hotkeyTimer;
+        private bool _wasKeyPressed = false;
+
+        [DllImport("user32.dll")]
+        private static extern short GetAsyncKeyState(int vKey);
 
         public MainWindow()
         {
             this.InitializeComponent();
-
             this.AppWindow?.Resize(new Windows.Graphics.SizeInt32(1000, 750));
 
             HistoryList.ItemsSource = SessionHistory;
             InitializeSpeechRecognizer();
-            RegisterHotKeys();
+
+            RegisterHotkeyTimer();
             CenterWindowOnScreen();
         }
+
         private void CenterWindowOnScreen()
         {
             var displayArea = DisplayArea.GetFromWindowId(this.AppWindow.Id, DisplayAreaFallback.Nearest);
@@ -45,18 +53,11 @@ namespace KeyBoopWin
                 _speechRecognizer = new SpeechRecognizer("ru");
                 _speechRecognizer.TextRecognized += OnTextRecognized;
                 _speechRecognizer.AudioLevelChanged += OnAudioLevelChanged;
-
-                // ⚡ ПОДПИСЫВАЕМСЯ НА СОБЫТИЯ НОВОГО КЛАССА NoiseSuppressor
                 _speechRecognizer.NoiseSuppressor.LearningProgressChanged += OnNoiseLearningProgress;
                 _speechRecognizer.NoiseSuppressor.LearningCompleted += OnNoiseLearningCompleted;
-
-                // ⚡ ВКЛЮЧАЕМ ШУМОПОДАВЛЕНИЕ ПО УМОЛЧАНИЮ
                 _speechRecognizer.SetNoiseSuppression(true);
-                if (NoiseSuppressionCheckBox != null)
-                {
-                    NoiseSuppressionCheckBox.IsChecked = true;
-                }
 
+                if (NoiseSuppressionCheckBox != null) NoiseSuppressionCheckBox.IsChecked = true;
                 StatusText.Text = "✅ Модель загружена. Шумоподавление включено.";
             }
             catch (Exception ex)
@@ -83,7 +84,6 @@ namespace KeyBoopWin
                 _speechRecognizer.StopListening();
                 StartVoiceBtn.IsEnabled = true;
                 StopVoiceBtn.IsEnabled = false;
-
                 AddCurrentTextToHistory();
                 StatusText.Text = "⏹️ Запись остановлена. Текст добавлен в историю.";
             }
@@ -95,10 +95,7 @@ namespace KeyBoopWin
             {
                 _micPreview = new MicrophonePreview();
                 _micPreview.AudioLevelChanged += OnAudioLevelChanged;
-
-                // ⚡ ПЕРЕДАЕМ SpeechRecognizer, чтобы тест использовал тот же NoiseSuppressor
                 _micPreview.StartPreview(_speechRecognizer);
-
                 _isPreviewing = true;
                 PreviewMicBtn.Content = "⏹️ Остановить тест";
                 StatusText.Text = "🎧 Тест микрофона активен.";
@@ -114,23 +111,9 @@ namespace KeyBoopWin
             }
         }
 
-        private void OnTextRecognized(object? sender, string text)
-        {
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                RecognizedText.Text += text + " ";
-            });
-        }
+        private void OnTextRecognized(object? sender, string text) => DispatcherQueue.TryEnqueue(() => RecognizedText.Text += text + " ");
+        private void OnAudioLevelChanged(object? sender, float level) => DispatcherQueue.TryEnqueue(() => AudioLevelBar.Value = Math.Min(1.0, level * 2));
 
-        private void OnAudioLevelChanged(object? sender, float level)
-        {
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                AudioLevelBar.Value = Math.Min(1.0, level * 2);
-            });
-        }
-
-        // ⚡ ОБРАБОТЧИК ПРОГРЕССА ОБУЧЕНИЯ ШУМУ
         private void OnNoiseLearningProgress(object? sender, int progressPercent)
         {
             DispatcherQueue.TryEnqueue(() =>
@@ -139,13 +122,11 @@ namespace KeyBoopWin
                 {
                     NoiseLearningBar.Visibility = Visibility.Visible;
                     NoiseLearningBar.Value = progressPercent;
-                    int secondsLeft = (100 - progressPercent) / 50;
-                    StatusText.Text = $"🔇 Обучение шуму: {progressPercent}% (молчите ~{secondsLeft} сек)";
+                    StatusText.Text = $"🔇 Обучение шуму: {progressPercent}% (молчите ~{(100 - progressPercent) / 50} сек)";
                 }
             });
         }
 
-        // ⚡ ОБРАБОТЧИК ЗАВЕРШЕНИЯ ОБУЧЕНИЯ ШУМУ
         private void OnNoiseLearningCompleted(object? sender, EventArgs e)
         {
             DispatcherQueue.TryEnqueue(() =>
@@ -157,50 +138,26 @@ namespace KeyBoopWin
 
         private void AddCurrentTextToHistory()
         {
-            if (RecognizedText == null || string.IsNullOrWhiteSpace(RecognizedText.Text))
-            {
-                return;
-            }
+            if (RecognizedText == null || string.IsNullOrWhiteSpace(RecognizedText.Text)) return;
 
-            var item = new HistoryItem
-            {
-                Timestamp = DateTime.Now.ToString("HH:mm:ss"),
-                Text = RecognizedText.Text.Trim()
-            };
-
+            var item = new HistoryItem { Timestamp = DateTime.Now.ToString("HH:mm:ss"), Text = RecognizedText.Text.Trim() };
             SessionHistory.Add(item);
             RecognizedText.Text = "";
         }
 
-        private void AddToHistory_Click(object sender, RoutedEventArgs e)
-        {
-            AddCurrentTextToHistory();
-            StatusText.Text = "✅ Текст добавлен в историю.";
-        }
-
-        private void ClearHistory_Click(object sender, RoutedEventArgs e)
-        {
-            SessionHistory.Clear();
-            StatusText.Text = "🗑️ История очищена.";
-        }
+        private void AddToHistory_Click(object sender, RoutedEventArgs e) { AddCurrentTextToHistory(); StatusText.Text = "✅ Текст добавлен в историю."; }
+        private void ClearHistory_Click(object sender, RoutedEventArgs e) { SessionHistory.Clear(); StatusText.Text = "🗑️ История очищена."; }
 
         private async void CopyHistoryItem_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button button && button.Tag is string text)
             {
-                var dataPackage = new Windows.ApplicationModel.DataTransfer.DataPackage
-                {
-                    RequestedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy
-                };
+                var dataPackage = new Windows.ApplicationModel.DataTransfer.DataPackage { RequestedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy };
                 dataPackage.SetText(text);
                 Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dataPackage);
-
                 StatusText.Text = "📋 Элемент истории скопирован!";
                 await Task.Delay(2000);
-                if (StatusText.Text == "📋 Элемент истории скопирован!")
-                {
-                    StatusText.Text = "✅ Готов к работе";
-                }
+                if (StatusText.Text == "📋 Элемент истории скопирован!") StatusText.Text = "✅ Готов к работе";
             }
         }
 
@@ -208,19 +165,12 @@ namespace KeyBoopWin
         {
             if (!string.IsNullOrEmpty(RecognizedText.Text))
             {
-                var dataPackage = new Windows.ApplicationModel.DataTransfer.DataPackage
-                {
-                    RequestedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy
-                };
+                var dataPackage = new Windows.ApplicationModel.DataTransfer.DataPackage { RequestedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy };
                 dataPackage.SetText(RecognizedText.Text);
                 Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dataPackage);
-
                 StatusText.Text = "📋 Текущий текст скопирован!";
                 await Task.Delay(2000);
-                if (StatusText.Text == "📋 Текущий текст скопирован!")
-                {
-                    StatusText.Text = "✅ Готов к работе";
-                }
+                if (StatusText.Text == "📋 Текущий текст скопирован!") StatusText.Text = "✅ Готов к работе";
             }
         }
 
@@ -235,64 +185,88 @@ namespace KeyBoopWin
                     _speechRecognizer?.ChangeLanguage(lang);
                     StatusText.Text = $"✅ Язык изменен на: {(lang == "ru" ? "Русский" : "English")}";
                 }
-                catch (Exception ex)
-                {
-                    StatusText.Text = $"❌ Ошибка смены языка: {ex.Message}";
-                }
+                catch (Exception ex) { StatusText.Text = $"❌ Ошибка смены языка: {ex.Message}"; }
             }
         }
 
         private void MicGainSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
         {
             GainValueText.Text = $"{e.NewValue:F1}x";
-
-            if (_speechRecognizer != null)
-            {
-                _speechRecognizer.SetMicrophoneGain((float)e.NewValue);
-            }
+            if (_speechRecognizer != null) _speechRecognizer.SetMicrophoneGain((float)e.NewValue);
         }
 
-        private void NoiseSuppression_Checked(object sender, RoutedEventArgs e)
-        {
-            if (_speechRecognizer != null)
-            {
-                _speechRecognizer.SetNoiseSuppression(true);
-                // Статус обновится автоматически через событие OnNoiseLearningProgress
-            }
-        }
-
+        private void NoiseSuppression_Checked(object sender, RoutedEventArgs e) { if (_speechRecognizer != null) _speechRecognizer.SetNoiseSuppression(true); }
         private void NoiseSuppression_Unchecked(object sender, RoutedEventArgs e)
         {
-            if (_speechRecognizer != null)
+            if (_speechRecognizer != null) { _speechRecognizer.SetNoiseSuppression(false); NoiseLearningBar.Visibility = Visibility.Collapsed; StatusText.Text = "✅ Шумоподавление выключено"; }
+        }
+
+        // ==========================================
+        // ГЛОБАЛЬНЫЙ ПЕРЕХВАТ ВСЕХ ХОТКЕЕВ
+        // ==========================================
+        private void RegisterHotkeyTimer()
+        {
+            _hotkeyTimer = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread().CreateTimer();
+            _hotkeyTimer.Interval = TimeSpan.FromMilliseconds(100);
+            _hotkeyTimer.Tick += HotkeyTimer_Tick;
+            _hotkeyTimer.Start();
+        }
+
+        private void HotkeyTimer_Tick(object? sender, object e)
+        {
+            var settings = SettingsManager.Load();
+            if (settings.IsSleepMode) return;
+
+            CheckHotkey(settings.EnableVoiceInputHotkey, settings.VoiceInputHotkeyModifiers, settings.VoiceInputHotkeyKey, () => this.Activate());
+            CheckHotkey(settings.EnableTranslatorHotkey, settings.TranslatorHotkeyModifiers, settings.TranslatorHotkeyKey, () => new TranslatorWindow().Activate());
+            CheckHotkey(settings.EnableConverterHotkey, settings.ConverterHotkeyModifiers, settings.ConverterHotkeyKey, () => new ConverterWindow().Activate());
+            CheckHotkey(settings.EnableScreenTranslatorHotkey, settings.ScreenTranslatorHotkeyModifiers, settings.ScreenTranslatorHotkeyKey, () =>
             {
-                _speechRecognizer.SetNoiseSuppression(false);
-                NoiseLearningBar.Visibility = Visibility.Collapsed;
-                StatusText.Text = "✅ Шумоподавление выключено";
+                if (App.Current is App app) app.ActivateScreenTranslator();
+            });
+        }
+
+        private void CheckHotkey(bool isEnabled, VirtualKeyModifiers modifiers, VirtualKey key, Action action)
+        {
+            if (!isEnabled) return;
+
+            uint vk = (uint)key;
+            bool keyDown = (GetAsyncKeyState((int)vk) & 0x8000) != 0;
+            bool ctrlPressed = (GetAsyncKeyState(0x11) & 0x8000) != 0;
+            bool altPressed = (GetAsyncKeyState(0x12) & 0x8000) != 0;
+            bool shiftPressed = (GetAsyncKeyState(0x10) & 0x8000) != 0;
+
+            bool modifiersMatch = true;
+            if (modifiers.HasFlag(VirtualKeyModifiers.Control)) modifiersMatch &= ctrlPressed; else modifiersMatch &= !ctrlPressed;
+            if (modifiers.HasFlag(VirtualKeyModifiers.Menu)) modifiersMatch &= altPressed; else modifiersMatch &= !altPressed;
+            if (modifiers.HasFlag(VirtualKeyModifiers.Shift)) modifiersMatch &= shiftPressed; else modifiersMatch &= !shiftPressed;
+
+            if (keyDown && modifiersMatch && !_wasKeyPressed)
+            {
+                _wasKeyPressed = true;
+                action();
+            }
+            else if (!keyDown)
+            {
+                _wasKeyPressed = false;
             }
         }
 
-        private void RegisterHotKeys() { }
-        private void TestVoiceInput_Click(object sender, RoutedEventArgs e) => StatusText.Text = "🎤 Используйте панель записи.";
-        private void TestKeyboard_Click(object sender, RoutedEventArgs e) => StatusText.Text = "⌨️ Перехват работает в фоне!";
-        private void FixLastWord_Click(object sender, RoutedEventArgs e) => StatusText.Text = "🔄 Исправление автоматически.";
-        private void OpenSettings_Click(object sender, RoutedEventArgs e)
-        {
-            if (App.Current is App app)
-            {
-                app.OpenSettings();
-            }
-        }
-        private void OpenConverter_Click(object sender, RoutedEventArgs e)
-        {
-            var converterWindow = new ConverterWindow();
-            converterWindow.Activate();
-        }
+        // ⚡ ИСПРАВЛЕННАЯ СИГНАТУРА (без ?)
         private void OpenTranslator_Click(object sender, RoutedEventArgs e)
         {
-            var TranslatorWindow = new TranslatorWindow();
-            TranslatorWindow.Activate();
+            new TranslatorWindow().Activate();
         }
 
+        private void OpenSettings_Click(object sender, RoutedEventArgs e)
+        {
+            if (App.Current is App app) app.OpenSettings();
+        }
+
+        private void OpenConverter_Click(object sender, RoutedEventArgs e)
+        {
+            new ConverterWindow().Activate();
+        }
     }
 
     public class HistoryItem

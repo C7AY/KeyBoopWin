@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Windowing;
+using Microsoft.Win32;
 using WinRT.Interop;
 
 namespace KeyBoopWin
@@ -22,43 +23,6 @@ namespace KeyBoopWin
 
         // ⚡ ЭКРАННЫЙ ПЕРЕВОДЧИК: ОДИН экземпляр на все время работы
         private ScreenTranslatorWindow? _screenTranslatorWindow;
-
-        // ⚡ WIN32 API ДЛЯ ГОРЯЧИХ КЛАВИШ
-        private const uint WM_HOTKEY = 0x0312;
-        private IntPtr _hotkeyHwnd;
-        private WndProcDelegate? _hotkeyWndProc;
-
-        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-        private static extern ushort RegisterClassEx(ref WNDCLASSEX lpwcx);
-        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-        private static extern IntPtr CreateWindowEx(int dwExStyle, string lpClassName, string lpWindowName, int dwStyle, int x, int y, int nWidth, int nHeight, IntPtr hWndParent, IntPtr hMenu, IntPtr hInstance, IntPtr lpParam);
-        [DllImport("user32.dll")]
-        private static extern IntPtr DefWindowProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam);
-        [DllImport("user32.dll")]
-        private static extern bool DestroyWindow(IntPtr hWnd);
-        [DllImport("user32.dll")]
-        private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
-        [DllImport("user32.dll")]
-        private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
-
-        private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam);
-
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-        private struct WNDCLASSEX
-        {
-            public uint cbSize;
-            public uint style;
-            public WndProcDelegate lpfnWndProc;
-            public int cbClsExtra;
-            public int cbWndExtra;
-            public IntPtr hInstance;
-            public IntPtr hIcon;
-            public IntPtr hCursor;
-            public IntPtr hbrBackground;
-            public string lpszMenuName;
-            public string lpszClassName;
-            public IntPtr hIconSm;
-        }
 
         private const uint KEYEVENTF_KEYUP = 0x0002;
         private const uint KEYEVENTF_INJECTED = 0x0010;
@@ -79,15 +43,14 @@ namespace KeyBoopWin
 
             _trayIcon.OpenMainWindowRequested += (s, e) => _window?.AppWindow.Show();
             _trayIcon.OpenSettingsRequested += (s, e) => OpenSettings();
-
             _trayIcon.OpenConverterRequested += (s, e) => new ConverterWindow().Activate();
             _trayIcon.OpenTranslatorRequested += (s, e) => new TranslatorWindow().Activate();
 
-            // ⚡ ПОКАЗЫВАЕМ УЖЕ СОЗДАННЫЙ ЭКЗЕМПЛЯР, А НЕ СОЗДАЕМ НОВЫЙ
-            _trayIcon.OpenScreenTranslatorRequested += (s, e) =>
-            {
-                _screenTranslatorWindow?.Activate();
-            };
+            _trayIcon.OpenScreenTranslatorRequested += (s, e) => ActivateScreenTranslator();
+
+            // ⚡ ПУНКТЫ ТРЕЯ: Спящий режим и Автозагрузка
+            _trayIcon.ToggleSleepModeRequested += (s, e) => ToggleSleepMode();
+            //_trayIcon.ToggleAutoStartRequested += (s, e) => ToggleAutoStart();
 
             _trayIcon.ExitRequested += (s, e) =>
             {
@@ -99,43 +62,66 @@ namespace KeyBoopWin
             KeyboardHook.WordCompleted += OnWordCompleted;
             KeyboardHook.ManualConvertRequested += OnManualConvertRequested;
 
-            // ⚡ ИНИЦИАЛИЗАЦИЯ ЭКРАННОГО ПЕРЕВОДЧИКА И F10
+            // ⚡ ИНИЦИАЛИЗАЦИЯ ЭКРАННОГО ПЕРЕВОДЧИКА
             _screenTranslatorWindow = new ScreenTranslatorWindow();
-            RegisterF10HotKey();
+
+            // ⚡ ПРОВЕРКА СПЯЩЕГО РЕЖИМА ПРИ ЗАПУСКЕ (исправлено дублирование)
+            var settings = SettingsManager.Load();
+            if (settings.IsSleepMode)
+            {
+                KeyboardHook?.SetEnabled(false);
+                System.Diagnostics.Debug.WriteLine("💤 Приложение запущено в спящем режиме");
+            }
 
             System.Diagnostics.Debug.WriteLine("✅ KeyBoop запущен");
             _window.Activate();
         }
 
-        // ⚡ РЕГИСТРАЦИЯ F10 ЧЕРЕЗ СКРЫТОЕ ОКНО
-        private void RegisterF10HotKey()
+        // ⚡ Активация экранного переводчика (с проверкой спящего режима)
+        public void ActivateScreenTranslator()
         {
-            _hotkeyWndProc = HotKeyWndProc;
-            var wc = new WNDCLASSEX
+            var settings = SettingsManager.Load();
+            if (settings.IsSleepMode)
             {
-                cbSize = (uint)Marshal.SizeOf<WNDCLASSEX>(),
-                lpfnWndProc = _hotkeyWndProc,
-                lpszClassName = "KeyBoopHotKeyClass",
-                hInstance = IntPtr.Zero
-            };
-            RegisterClassEx(ref wc);
-            _hotkeyHwnd = CreateWindowEx(0, "KeyBoopHotKeyClass", "HotKeyWindow", 0, 0, 0, 0, 0, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+                System.Diagnostics.Debug.WriteLine("💤 Приложение в спящем режиме. Экранный переводчик не активирован.");
+                return;
+            }
 
-            // Регистрируем F10 (VK_F10 = 0x79), модификаторы = 0 (просто F10)
-            RegisterHotKey(_hotkeyHwnd, 1001, 0, 0x79);
+            if (_screenTranslatorWindow != null)
+            {
+                _ = _screenTranslatorWindow.TriggerScreenTranslationAsync();
+            }
         }
 
-        private IntPtr HotKeyWndProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam)
+        // ⚡ Переключение спящего режима
+        public void ToggleSleepMode()
         {
-            if (uMsg == WM_HOTKEY && wParam.ToInt32() == 1001)
-            {
-                System.Diagnostics.Debug.WriteLine("⚡ F10 нажата! Запуск перевода экрана...");
-                if (_screenTranslatorWindow != null)
-                {
-                    _ = _screenTranslatorWindow.TriggerScreenTranslationAsync();
-                }
-            }
-            return DefWindowProc(hWnd, uMsg, wParam, lParam);
+            var settings = SettingsManager.Load();
+            settings.IsSleepMode = !settings.IsSleepMode;
+            SettingsManager.Save(settings);
+
+            KeyboardHook?.SetEnabled(!settings.IsSleepMode);
+
+            string status = settings.IsSleepMode ? "💤 Спящий режим АКТИВИРОВАН" : "✅ Спящий режим ОТКЛЮЧЕН";
+            System.Diagnostics.Debug.WriteLine(status);
+
+            _trayIcon?.ShowBalloonTip("KeyBoopWin", settings.IsSleepMode ?
+                "Приложение приостановлено (спящий режим)" :
+                "Приложение активно");
+        }
+
+        // ⚡ Переключение автозагрузки
+        public void ToggleAutoStart()
+        {
+            var settings = SettingsManager.Load();
+            settings.AutoStart = !settings.AutoStart;
+            SettingsManager.Save(settings);
+
+            SettingsManager.SetAutoStart(settings.AutoStart);
+
+            _trayIcon?.ShowBalloonTip("KeyBoopWin", settings.AutoStart ?
+                "Автозагрузка ВКЛЮЧЕНА" :
+                "Автозагрузка ОТКЛЮЧЕНА");
         }
 
         private void Window_Closing(Microsoft.UI.Windowing.AppWindow sender, Microsoft.UI.Windowing.AppWindowClosingEventArgs args)
@@ -155,10 +141,6 @@ namespace KeyBoopWin
             }
             else
             {
-                // ⚡ ОЧИСТКА РЕСУРСОВ ПРИ ПОЛНОМ ЗАКРЫТИИ
-                UnregisterHotKey(_hotkeyHwnd, 1001);
-                if (_hotkeyHwnd != IntPtr.Zero) DestroyWindow(_hotkeyHwnd);
-
                 KeyboardHook?.Dispose();
                 _trayIcon?.Dispose();
                 _screenTranslatorWindow?.Close();
@@ -186,57 +168,50 @@ namespace KeyBoopWin
 
         private async void OnManualConvertRequested(object? sender, bool toRussian)
         {
-            if (_isCorrecting) return;
-            _isCorrecting = true;
+            var settings = SettingsManager.Load();
+            if (settings.IsSleepMode || _isCorrecting) return;
 
+            _isCorrecting = true;
             try
             {
                 System.Diagnostics.Debug.WriteLine($"🔄 Ручная конвертация: в {(toRussian ? "RU" : "EN")}");
                 string originalClipboard = GetClipboardTextWin32() ?? string.Empty;
                 string clipboardBeforeCopy = originalClipboard;
-
                 await SimulateCopy();
                 string selectedText = GetClipboardTextWin32() ?? "";
-                string textToConvert;
 
                 if (!string.IsNullOrWhiteSpace(selectedText) && selectedText != clipboardBeforeCopy)
                 {
-                    textToConvert = selectedText.Trim();
+                    string textToConvert = selectedText.Trim();
                     System.Diagnostics.Debug.WriteLine($"✅ Найден выделенный текст: '{textToConvert}'");
+
+                    string convertedText = LayoutCorrector.ConvertLayout(textToConvert, toRussian);
+                    if (convertedText == textToConvert)
+                    {
+                        System.Diagnostics.Debug.WriteLine("⚠️ Текст не изменился после конвертации");
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"🔄 Конвертация: '{textToConvert}' → '{convertedText}'");
+                        SetClipboardTextWin32(convertedText);
+                        await SendKeyCombo(0x11, false, false);
+                        await SendKeyCombo(0x56, true, false);
+                        await SendKeyCombo(0x56, true, true);
+                        await SendKeyCombo(0x11, false, true);
+                        await Task.Delay(50);
+
+                        if (!string.IsNullOrEmpty(originalClipboard))
+                        {
+                            SetClipboardTextWin32(originalClipboard);
+                        }
+                        System.Diagnostics.Debug.WriteLine("🎉 Успешная конвертация!");
+                    }
                 }
                 else
                 {
                     System.Diagnostics.Debug.WriteLine("⚠️ Текст не выделен.");
-                    if (!string.IsNullOrEmpty(originalClipboard)) SetClipboardTextWin32(originalClipboard!);
-                    _isCorrecting = false;
-                    return;
+                    if (!string.IsNullOrEmpty(originalClipboard)) SetClipboardTextWin32(originalClipboard);
                 }
-
-                string convertedText = LayoutCorrector.ConvertLayout(textToConvert, toRussian);
-
-                if (convertedText == textToConvert)
-                {
-                    System.Diagnostics.Debug.WriteLine("⚠️ Текст не изменился после конвертации");
-                    if (!string.IsNullOrEmpty(originalClipboard)) SetClipboardTextWin32(originalClipboard!);
-                    _isCorrecting = false;
-                    return;
-                }
-
-                System.Diagnostics.Debug.WriteLine($"🔄 Конвертация: '{textToConvert}' → '{convertedText}'");
-
-                SetClipboardTextWin32(convertedText);
-                await SendKeyCombo(0x11, false, false);
-                await SendKeyCombo(0x56, true, false);
-                await SendKeyCombo(0x56, true, true);
-                await SendKeyCombo(0x11, false, true);
-                await Task.Delay(50);
-
-                if (!string.IsNullOrEmpty(originalClipboard))
-                {
-                    SetClipboardTextWin32(originalClipboard!);
-                }
-
-                System.Diagnostics.Debug.WriteLine($"🎉 Успешная конвертация!");
             }
             catch (Exception ex)
             {
@@ -270,13 +245,14 @@ namespace KeyBoopWin
 
         private void OnWordCompleted(object? sender, List<int> vkCodes)
         {
-            if (_isCorrecting) return;
-            if (KeyboardHook == null || vkCodes == null || vkCodes.Count < 2) return;
+            var settings = SettingsManager.Load();
+            if (settings.IsSleepMode || _isCorrecting) return;
 
+            if (KeyboardHook == null || vkCodes == null || vkCodes.Count < 2) return;
             int expectedLength = KeyboardHook.GetCurrentBufferLength();
+
             IntPtr hWnd = GetForegroundWindow();
             GetWindowThreadProcessId(hWnd, out uint processId);
-
             if (processId == Process.GetCurrentProcess().Id) return;
 
             uint threadId = GetWindowThreadProcessId(hWnd, out _);
@@ -290,7 +266,6 @@ namespace KeyBoopWin
 
             string strCurrent = _corrector.VkCodesToString(vkCodes, currentLayout) ?? "";
             string strAlt = _corrector.VkCodesToString(vkCodes, altLayout) ?? "";
-
             string cleanCurrent = new string(strCurrent.Where(c => char.IsLetter(c) || c == '[' || c == ']' || c == ';' || c == '\'' || c == ',' || c == '.' || c == '`').ToArray());
             string cleanAlt = new string(strAlt.Where(c => char.IsLetter(c) || c == '[' || c == ']' || c == ';' || c == '\'' || c == ',' || c == '.' || c == '`').ToArray());
 
@@ -326,7 +301,6 @@ namespace KeyBoopWin
 
                         string textToInsert = wordToInsert + boundary;
                         string? originalClipboard = GetClipboardTextWin32();
-
                         if (SetClipboardTextWin32(textToInsert))
                         {
                             await SendKeyCombo(0x11, false, false);
@@ -334,7 +308,6 @@ namespace KeyBoopWin
                             await SendKeyCombo(0x56, true, true);
                             await SendKeyCombo(0x11, false, true);
                             await Task.Delay(50);
-
                             if (originalClipboard != null) SetClipboardTextWin32(originalClipboard);
                         }
                     }

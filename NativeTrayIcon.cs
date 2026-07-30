@@ -19,7 +19,6 @@ namespace KeyBoopWin
         private const uint WM_LBUTTONDBLCLK = 0x0203;
         private const uint WM_RBUTTONUP = 0x0205;
         private const uint WM_COMMAND = 0x0111;
-
         private const uint MF_STRING = 0x00000000;
         private const uint MF_SEPARATOR = 0x00000800;
         private const uint TPM_BOTTOMALIGN = 0x0020;
@@ -31,6 +30,8 @@ namespace KeyBoopWin
         private const int ID_EXIT = 1004;
         private const int ID_TRANSLATOR = 1005;
         private const int ID_SCREEN_TRANSLATOR = 1006;
+        private const int ID_SLEEP_MODE = 1007;      // ⚡ НОВОЕ
+        //private const int ID_AUTO_START = 1008;       //  НОВОЕ
 
         private IntPtr _hWnd;
         private bool _disposed = false;
@@ -41,8 +42,10 @@ namespace KeyBoopWin
         public event EventHandler? OpenConverterRequested;
         public event EventHandler? OpenSettingsRequested;
         public event EventHandler? ExitRequested;
-        public event EventHandler? OpenTranslatorRequested; 
+        public event EventHandler? OpenTranslatorRequested;
         public event EventHandler? OpenScreenTranslatorRequested;
+        public event EventHandler? ToggleSleepModeRequested;      // ⚡ НОВОЕ
+        //public event EventHandler? ToggleAutoStartRequested;      // ⚡ НОВОЕ
 
         public NativeTrayIcon(Icon icon, string toolTip)
         {
@@ -121,7 +124,6 @@ namespace KeyBoopWin
         private IntPtr WndProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam)
         {
             const uint WM_TRAYICON = 0x0400;
-
             if (uMsg == WM_TRAYICON)
             {
                 int lParamInt = lParam.ToInt32();
@@ -143,25 +145,33 @@ namespace KeyBoopWin
                 else if (commandId == ID_EXIT) ExitRequested?.Invoke(this, EventArgs.Empty);
                 else if (commandId == ID_TRANSLATOR) OpenTranslatorRequested?.Invoke(this, EventArgs.Empty);
                 else if (commandId == ID_SCREEN_TRANSLATOR) OpenScreenTranslatorRequested?.Invoke(this, EventArgs.Empty);
+                else if (commandId == ID_SLEEP_MODE) ToggleSleepModeRequested?.Invoke(this, EventArgs.Empty);      // ⚡ НОВОЕ
+                //else if (commandId == ID_AUTO_START) ToggleAutoStartRequested?.Invoke(this, EventArgs.Empty);     // ⚡ НОВОЕ
             }
-
             return DefWindowProc(hWnd, uMsg, wParam, lParam);
-
-            
         }
 
         private void ShowContextMenu()
         {
             IntPtr hMenu = CreatePopupMenu();
-            AppendMenu(hMenu, MF_STRING, ID_OPEN_MAIN, " 🎤 Голосовой ввод");
-            AppendMenu(hMenu, MF_STRING, ID_TRANSLATOR, " 🌐 Переводчик"); // ⚡ НОВЫЙ ПУНКТ
-            AppendMenu(hMenu, MF_STRING, ID_CONVERTER, " 🔠 Конвертер регистров");
-            AppendMenu(hMenu, MF_STRING, ID_SCREEN_TRANSLATOR, " 📺 Экранный переводчик");
-            AppendMenu(hMenu, MF_STRING, ID_SETTINGS, " ⚙️ Настройки");
-            
+
+            AppendMenu(hMenu, MF_STRING, ID_OPEN_MAIN, "🎤 Голосовой ввод");
+            AppendMenu(hMenu, MF_STRING, ID_TRANSLATOR, "🌐 Переводчик");
+            AppendMenu(hMenu, MF_STRING, ID_CONVERTER, "🔤 Конвертер регистров");
+            AppendMenu(hMenu, MF_STRING, ID_SCREEN_TRANSLATOR, "📺 Экранный переводчик");
             AppendMenu(hMenu, MF_SEPARATOR, 0, "");
-            AppendMenu(hMenu, MF_STRING, ID_EXIT, " ❌ Закрыть");
-            
+
+            // ⚡ ДОБАВЛЯЕМ ПУНКТЫ СПЯЩЕГО РЕЖИМА И АВТОЗАГРУЗКИ
+            var settings = SettingsManager.Load();
+            string sleepModeText = settings.IsSleepMode ? "💤 Выйти из спящего режима" : "💤 Спящий режим";
+            string autoStartText = settings.AutoStart ? "❌ Отключить автозагрузку" : "✅ Включить автозагрузку";
+
+            AppendMenu(hMenu, MF_STRING, ID_SLEEP_MODE, sleepModeText);
+            //AppendMenu(hMenu, MF_STRING, ID_AUTO_START, autoStartText);
+            AppendMenu(hMenu, MF_SEPARATOR, 0, "");
+
+            AppendMenu(hMenu, MF_STRING, ID_SETTINGS, "⚙️ Настройки");
+            AppendMenu(hMenu, MF_STRING, ID_EXIT, "❌ Закрыть");
 
             GetCursorPos(out Point p);
             TrackPopupMenu(hMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN, p.X, p.Y, 0, _hWnd, IntPtr.Zero);

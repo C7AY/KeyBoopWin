@@ -13,6 +13,7 @@
 		<WindowsPackageType>None</WindowsPackageType>
 		<Nullable>enable</Nullable>
 		<NoWarn>NU1605;NU1701</NoWarn>
+		<NoWarn>CA1416;NU1605;NU1701</NoWarn>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -41,6 +42,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<PackageReference Include="Microsoft.Toolkit.Uwp.Notifications" Version="7.1.3" />
 		<PackageReference Include="Microsoft.WindowsAppSDK" Version="2.3.1" />
 		<PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.22621.756" />
 

@@ -2,6 +2,7 @@
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading.Tasks;
+using Microsoft.UI;
 using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -23,14 +24,35 @@ namespace KeyBoopWin
         private readonly TaskCompletionSource<Windows.Foundation.Rect?> _selectionTask = new();
 
         [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll")]
         private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+        [DllImport("user32.dll")]
+        private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+        [DllImport("user32.dll")]
+        private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
         private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
         private const uint SWP_SHOWWINDOW = 0x0040;
-        private const uint SWP_NOACTIVATE = 0x0010;
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_NOSIZE = 0x0001;
+        private const int SW_MAXIMIZE = 3;
+        private const int GWL_EXSTYLE = -20;
+        private const int WS_EX_LAYERED = 0x00080000;
+        private const int WS_EX_TOPMOST = 0x00000008;
+
+        //  Сохраняем скриншот как свойство
+        public byte[]? ScreenshotBytes { get; private set; }
+        public int ScreenshotWidth { get; private set; }
+        public int ScreenshotHeight { get; private set; }
 
         public AreaSelectorWindow()
         {
+            this.SystemBackdrop = null;
+
             this.InitializeComponent();
 
             var presenter = this.AppWindow.Presenter as OverlappedPresenter;
@@ -39,8 +61,7 @@ namespace KeyBoopWin
                 presenter.SetBorderAndTitleBar(false, false);
             }
 
-            // ⚡ Делаем окно прозрачным
-            RootGrid.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            RootGrid.Background = new SolidColorBrush(Colors.Transparent);
 
             RootGrid.PointerPressed += OnPointerPressed;
             RootGrid.PointerMoved += OnPointerMoved;
@@ -50,6 +71,11 @@ namespace KeyBoopWin
 
         public async Task<Windows.Foundation.Rect?> ShowSelectionWithScreenshotAsync(byte[] screenshotBytes, int width, int height)
         {
+            // ⚡ Сохраняем скриншот
+            ScreenshotBytes = screenshotBytes;
+            ScreenshotWidth = width;
+            ScreenshotHeight = height;
+
             var bitmap = new BitmapImage();
             using (var stream = new InMemoryRandomAccessStream())
             {
@@ -59,24 +85,14 @@ namespace KeyBoopWin
             }
             BackgroundImage.Source = bitmap;
 
-            //  Получаем размеры ВСЕГО экрана (всех мониторов)
-            var displayArea = DisplayArea.Primary;
-
-            // ⚡ Сначала устанавливаем размер и позицию, ПОТОМ показываем окно
-            var newSize = new Windows.Graphics.SizeInt32((int)displayArea.OuterBounds.Width, (int)displayArea.OuterBounds.Height);
-            var newPosition = new Windows.Graphics.PointInt32((int)displayArea.OuterBounds.X, (int)displayArea.OuterBounds.Y);
-
-            this.AppWindow.Resize(newSize);
-            this.AppWindow.Move(newPosition);
-
-            // ⚡ Делаем окно поверх всех и показываем
             var hwnd = WindowNative.GetWindowHandle(this);
-            SetWindowPos(hwnd, HWND_TOPMOST,
-                (int)displayArea.OuterBounds.X,
-                (int)displayArea.OuterBounds.Y,
-                (int)displayArea.OuterBounds.Width,
-                (int)displayArea.OuterBounds.Height,
-                SWP_SHOWWINDOW | SWP_NOACTIVATE);
+
+            ShowWindow(hwnd, SW_MAXIMIZE);
+
+            int exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+            SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_LAYERED | WS_EX_TOPMOST);
+
+            SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE);
 
             this.Activate();
 
