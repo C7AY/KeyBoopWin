@@ -117,8 +117,4 @@
 - **Windows App SDK 2.3.1**
 
 ### Шаги сборки
-1. Клонируйте репозиторий:
-   ```bash
-   git clone https://github.com/C7AY/KeyBoopWin.git
-   cd KeyBoopWin
-   git checkout Windows
+Из Publish собрать у меня не вышло, собирал из Release.
