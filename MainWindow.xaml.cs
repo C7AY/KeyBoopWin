@@ -6,6 +6,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Windows.System;
+using System.IO;
 
 namespace KeyBoopWin
 {
@@ -63,6 +64,26 @@ namespace KeyBoopWin
             catch (Exception ex)
             {
                 StatusText.Text = $"❌ Ошибка: {ex.Message}. Проверь папку Models.";
+            }
+        }
+
+        public void UnloadSpeechModel()
+        {
+            if (_speechRecognizer != null)
+            {
+                _speechRecognizer.StopListening();
+                _speechRecognizer.Dispose();
+                _speechRecognizer = null;
+                System.Diagnostics.Debug.WriteLine("🔇 Модель Vosk выгружена из памяти");
+            }
+        }
+
+        public void LoadSpeechModel()
+        {
+            if (_speechRecognizer == null)
+            {
+                InitializeSpeechRecognizer();
+                System.Diagnostics.Debug.WriteLine(" Модель Vosk загружена в память");
             }
         }
 
@@ -215,11 +236,39 @@ namespace KeyBoopWin
         private void HotkeyTimer_Tick(object? sender, object e)
         {
             var settings = SettingsManager.Load();
+            if (App.IsRecordingHotkey) return;
+
+            // ⚡ ЗАДЕРЖКА: игнорируем хоткеи в течение 500 мс после их изменения
+            if ((DateTime.Now - App.LastHotkeyChangeTime).TotalMilliseconds < 500) return;
+
             if (settings.IsSleepMode) return;
 
-            CheckHotkey(settings.EnableVoiceInputHotkey, settings.VoiceInputHotkeyModifiers, settings.VoiceInputHotkeyKey, () => this.Activate());
-            CheckHotkey(settings.EnableTranslatorHotkey, settings.TranslatorHotkeyModifiers, settings.TranslatorHotkeyKey, () => new TranslatorWindow().Activate());
-            CheckHotkey(settings.EnableConverterHotkey, settings.ConverterHotkeyModifiers, settings.ConverterHotkeyKey, () => new ConverterWindow().Activate());
+            // ⚡ ОПТИМИЗАЦИЯ: Вычисляем путь к иконке ОДИН РАЗ за тик таймера
+            string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "app.ico");
+
+            // 1. Голосовой ввод (просто активируем главное окно)
+            CheckHotkey(settings.EnableVoiceInputHotkey, settings.VoiceInputHotkeyModifiers, settings.VoiceInputHotkeyKey, () =>
+            {
+                this.Activate();
+            });
+
+            // 2. Переводчик (создаем, ставим иконку, активируем)
+            CheckHotkey(settings.EnableTranslatorHotkey, settings.TranslatorHotkeyModifiers, settings.TranslatorHotkeyKey, () =>
+            {
+                var window = new TranslatorWindow();
+                if (File.Exists(iconPath)) window.AppWindow.SetIcon(iconPath);
+                window.Activate();
+            });
+
+            // 3. Конвертер регистров (создаем, ставим иконку, активируем)
+            CheckHotkey(settings.EnableConverterHotkey, settings.ConverterHotkeyModifiers, settings.ConverterHotkeyKey, () =>
+            {
+                var window = new ConverterWindow();
+                if (File.Exists(iconPath)) window.AppWindow.SetIcon(iconPath);
+                window.Activate();
+            });
+
+            // 4. Экранный переводчик (без изменений, так как там нет стандартного окна)
             CheckHotkey(settings.EnableScreenTranslatorHotkey, settings.ScreenTranslatorHotkeyModifiers, settings.ScreenTranslatorHotkeyKey, () =>
             {
                 if (App.Current is App app) app.ActivateScreenTranslator();
@@ -255,7 +304,10 @@ namespace KeyBoopWin
         // ⚡ ИСПРАВЛЕННАЯ СИГНАТУРА (без ?)
         private void OpenTranslator_Click(object sender, RoutedEventArgs e)
         {
-            new TranslatorWindow().Activate();
+            var window = new TranslatorWindow();
+            string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "app.ico");
+            if (File.Exists(iconPath)) window.AppWindow.SetIcon(iconPath);
+            window.Activate();
         }
 
         private void OpenSettings_Click(object sender, RoutedEventArgs e)
@@ -265,7 +317,10 @@ namespace KeyBoopWin
 
         private void OpenConverter_Click(object sender, RoutedEventArgs e)
         {
-            new ConverterWindow().Activate();
+            var window = new ConverterWindow();
+            string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "app.ico");
+            if (File.Exists(iconPath)) window.AppWindow.SetIcon(iconPath);
+            window.Activate();
         }
     }
 
@@ -274,4 +329,6 @@ namespace KeyBoopWin
         public string Timestamp { get; set; } = "";
         public string Text { get; set; } = "";
     }
+
+
 }

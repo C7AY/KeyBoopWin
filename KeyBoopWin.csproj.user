@@ -5,6 +5,7 @@
   </PropertyGroup>
   <PropertyGroup>
     <ActiveDebugProfile>KeyBoopWin (Unpackaged)</ActiveDebugProfile>
+    <_LastSelectedProfileId>C:\Users\gerz1\source\repos\KeyBoopWin\Properties\PublishProfiles\win-x64.pubxml</_LastSelectedProfileId>
   </PropertyGroup>
   <ItemGroup>
     <None Update="App.xaml">

@@ -9,6 +9,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Windowing;
 using Microsoft.Win32;
 using WinRT.Interop;
+using System.IO;
 
 namespace KeyBoopWin
 {
@@ -20,9 +21,15 @@ namespace KeyBoopWin
         private LayoutCorrector _corrector = new LayoutCorrector();
         private bool _isCorrecting = false;
         private bool _forceClose = false;
-
-        // ⚡ ЭКРАННЫЙ ПЕРЕВОДЧИК: ОДИН экземпляр на все время работы
+        private List<Window> _allWindows = new List<Window>();
         private ScreenTranslatorWindow? _screenTranslatorWindow;
+        public static bool IsRecordingHotkey { get; set; } = false;
+        public static DateTime LastHotkeyChangeTime { get; set; } = DateTime.MinValue;
+
+
+        // ⚡ ЗАЩИТА ОТ ПОВТОРНЫХ НАЖАТИЙ (Debounce)
+        private DateTime _lastManualConvertTime = DateTime.MinValue;
+        private const int MANUAL_CONVERT_COOLDOWN_MS = 500;
 
         private const uint KEYEVENTF_KEYUP = 0x0002;
         private const uint KEYEVENTF_INJECTED = 0x0010;
@@ -35,7 +42,18 @@ namespace KeyBoopWin
         protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
             DictionaryManager.Initialize();
+
             _window = new MainWindow();
+
+            string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "app.ico");
+            if (File.Exists(iconPath))
+            {
+                _window.AppWindow.SetIcon(iconPath);
+                System.Diagnostics.Debug.WriteLine($"✅ [MainWindow] Иконка установлена.");
+            }
+
+            _allWindows.Add(_window);
+            _window.Closed += (sender, args) => _allWindows.Remove(_window);
             _window.AppWindow.Closing += Window_Closing;
 
             Icon customIcon = CreateSimpleIcon();
@@ -43,18 +61,56 @@ namespace KeyBoopWin
 
             _trayIcon.OpenMainWindowRequested += (s, e) => _window?.AppWindow.Show();
             _trayIcon.OpenSettingsRequested += (s, e) => OpenSettings();
-            _trayIcon.OpenConverterRequested += (s, e) => new ConverterWindow().Activate();
-            _trayIcon.OpenTranslatorRequested += (s, e) => new TranslatorWindow().Activate();
+
+            _trayIcon.OpenConverterRequested += (s, e) =>
+            {
+                var window = new ConverterWindow();
+                _allWindows.Add(window);
+                window.Closed += (sender, args) => _allWindows.Remove(window);
+
+                // ⚡ ТРЮК: Сначала активируем окно, потом ставим иконку
+                window.Activate();
+
+                string currentIconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "app.ico");
+                System.Diagnostics.Debug.WriteLine($"🔍 [Converter] Файл существует? {File.Exists(currentIconPath)}");
+
+                if (File.Exists(currentIconPath))
+                {
+                    window.AppWindow.SetIcon(currentIconPath);
+                    System.Diagnostics.Debug.WriteLine("✅ [Converter] Иконка успешно установлена!");
+                }
+            };
+
+            _trayIcon.OpenTranslatorRequested += (s, e) =>
+            {
+                var window = new TranslatorWindow();
+                _allWindows.Add(window);
+                window.Closed += (sender, args) => _allWindows.Remove(window);
+
+                // ⚡ ТРЮК: Сначала активируем окно, потом ставим иконку
+                window.Activate();
+
+                string currentIconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "app.ico");
+                System.Diagnostics.Debug.WriteLine($"🔍 [Translator] Файл существует? {File.Exists(currentIconPath)}");
+
+                if (File.Exists(currentIconPath))
+                {
+                    window.AppWindow.SetIcon(currentIconPath);
+                    System.Diagnostics.Debug.WriteLine("✅ [Translator] Иконка успешно установлена!");
+                }
+            };
 
             _trayIcon.OpenScreenTranslatorRequested += (s, e) => ActivateScreenTranslator();
 
-            // ⚡ ПУНКТЫ ТРЕЯ: Спящий режим и Автозагрузка
             _trayIcon.ToggleSleepModeRequested += (s, e) => ToggleSleepMode();
-            //_trayIcon.ToggleAutoStartRequested += (s, e) => ToggleAutoStart();
 
             _trayIcon.ExitRequested += (s, e) =>
             {
                 _forceClose = true;
+                foreach (var window in _allWindows.ToList())
+                {
+                    window.Close();
+                }
                 _window?.Close();
             };
 
@@ -62,19 +118,17 @@ namespace KeyBoopWin
             KeyboardHook.WordCompleted += OnWordCompleted;
             KeyboardHook.ManualConvertRequested += OnManualConvertRequested;
 
-            // ⚡ ИНИЦИАЛИЗАЦИЯ ЭКРАННОГО ПЕРЕВОДЧИКА
+            // ⚡ ИНИЦИАЛИЗАЦИЯ ЭКРАННОГО ПЕРЕВОДЧИКА (без иконки, как ты и сказал)
             _screenTranslatorWindow = new ScreenTranslatorWindow();
+            _allWindows.Add(_screenTranslatorWindow);
+            _screenTranslatorWindow.Closed += (sender, args) => _allWindows.Remove(_screenTranslatorWindow);
 
-            // ⚡ ПРОВЕРКА СПЯЩЕГО РЕЖИМА ПРИ ЗАПУСКЕ (исправлено дублирование)
             var settings = SettingsManager.Load();
             if (settings.IsSleepMode)
             {
                 KeyboardHook?.SetEnabled(false);
                 System.Diagnostics.Debug.WriteLine("💤 Приложение запущено в спящем режиме");
             }
-
-            System.Diagnostics.Debug.WriteLine("✅ KeyBoop запущен");
-            _window.Activate();
         }
 
         // ⚡ Активация экранного переводчика (с проверкой спящего режима)
@@ -102,12 +156,42 @@ namespace KeyBoopWin
 
             KeyboardHook?.SetEnabled(!settings.IsSleepMode);
 
+            // Проверяем тип ОДИН РАЗ. Переменная mainWindow теперь доступна во всем блоке ниже.
+            if (_window is MainWindow mainWindow)
+            {
+                if (settings.IsSleepMode)
+                {
+                    // 1. Выгружаем модель речи
+                    mainWindow.UnloadSpeechModel();
+
+                    // 2. Выгружаем словари из памяти (Вариант 3)
+                    DictionaryManager.UnloadDictionaries();
+
+                    System.Diagnostics.Debug.WriteLine("💤 Спящий режим: модель и словари выгружены из RAM");
+                }
+                else
+                {
+                    // 1. Загружаем модель речи
+                    mainWindow.LoadSpeechModel();
+
+                    // 2. Загружаем словари обратно (ленивая загрузка сработает и здесь)
+                    DictionaryManager.LoadDictionaries();
+
+                    System.Diagnostics.Debug.WriteLine("✅ Пробуждение: модель и словари загружены в RAM");
+                }
+            }
+
+            // ⚡ ПРИНУДИТЕЛЬНАЯ СБОРКА МУСОРА для реального возврата памяти ОС
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+
             string status = settings.IsSleepMode ? "💤 Спящий режим АКТИВИРОВАН" : "✅ Спящий режим ОТКЛЮЧЕН";
             System.Diagnostics.Debug.WriteLine(status);
 
-            _trayIcon?.ShowBalloonTip("KeyBoopWin", settings.IsSleepMode ?
-                "Приложение приостановлено (спящий режим)" :
-                "Приложение активно");
+            //_trayIcon?.ShowBalloonTip("KeyBoopWin", settings.IsSleepMode ?
+            //    "Приложение приостановлено (освобождены ресурсы)" :
+            //    "Приложение активно");
         }
 
         // ⚡ Переключение автозагрузки
@@ -147,7 +231,15 @@ namespace KeyBoopWin
             }
         }
 
-        public void OpenSettings() => new SettingsWindow().Activate();
+        public void OpenSettings()
+        {
+            var settingsWindow = new SettingsWindow();
+            string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "app.ico");
+            if (File.Exists(iconPath)) settingsWindow.AppWindow.SetIcon(iconPath);
+            _allWindows.Add(settingsWindow);
+            settingsWindow.Closed += (sender, args) => _allWindows.Remove(settingsWindow);
+            settingsWindow.Activate();
+        }
 
         private async Task SendMultipleBackspaces(int count)
         {
@@ -168,8 +260,24 @@ namespace KeyBoopWin
 
         private async void OnManualConvertRequested(object? sender, bool toRussian)
         {
+            // ⚡ ЗАЩИТА ОТ ПОВТОРНЫХ НАЖАТИЙ (Debounce)
+            var now = DateTime.Now;
+            if ((now - _lastManualConvertTime).TotalMilliseconds < MANUAL_CONVERT_COOLDOWN_MS)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ Пропуск повторного нажатия (прошло {(now - _lastManualConvertTime).TotalMilliseconds}мс)");
+                return;
+            }
+            _lastManualConvertTime = now;
+
             var settings = SettingsManager.Load();
-            if (settings.IsSleepMode || _isCorrecting) return;
+
+            System.Diagnostics.Debug.WriteLine($"🔍 Проверка настроек: IsSleepMode={settings.IsSleepMode}, EnableManualFixHotkeys={settings.EnableManualFixHotkeys}, _isCorrecting={_isCorrecting}");
+
+            if (settings.IsSleepMode || _isCorrecting || !settings.EnableManualFixHotkeys)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ Ручное исправление проигнорировано. Причина: IsSleepMode={settings.IsSleepMode}, EnableManualFixHotkeys={settings.EnableManualFixHotkeys}");
+                return;
+            }
 
             _isCorrecting = true;
             try
@@ -177,8 +285,13 @@ namespace KeyBoopWin
                 System.Diagnostics.Debug.WriteLine($"🔄 Ручная конвертация: в {(toRussian ? "RU" : "EN")}");
                 string originalClipboard = GetClipboardTextWin32() ?? string.Empty;
                 string clipboardBeforeCopy = originalClipboard;
+
+                await Task.Delay(50); // Небольшая пауза перед копированием
                 await SimulateCopy();
+                await Task.Delay(150); // Увеличенная задержка для стабильности буфера
+
                 string selectedText = GetClipboardTextWin32() ?? "";
+                System.Diagnostics.Debug.WriteLine($"📋 Буфер обмена: '{selectedText}' (длина: {selectedText.Length})");
 
                 if (!string.IsNullOrWhiteSpace(selectedText) && selectedText != clipboardBeforeCopy)
                 {
@@ -186,31 +299,35 @@ namespace KeyBoopWin
                     System.Diagnostics.Debug.WriteLine($"✅ Найден выделенный текст: '{textToConvert}'");
 
                     string convertedText = LayoutCorrector.ConvertLayout(textToConvert, toRussian);
+                    System.Diagnostics.Debug.WriteLine($"🔄 Конвертация: '{textToConvert}' → '{convertedText}'");
+
                     if (convertedText == textToConvert)
                     {
-                        System.Diagnostics.Debug.WriteLine("⚠️ Текст не изменился после конвертации");
+                        System.Diagnostics.Debug.WriteLine("⚠️ Текст не изменился после конвертации (возможно, уже в правильной раскладке)");
                     }
                     else
                     {
-                        System.Diagnostics.Debug.WriteLine($"🔄 Конвертация: '{textToConvert}' → '{convertedText}'");
                         SetClipboardTextWin32(convertedText);
-                        await SendKeyCombo(0x11, false, false);
-                        await SendKeyCombo(0x56, true, false);
-                        await SendKeyCombo(0x56, true, true);
-                        await SendKeyCombo(0x11, false, true);
-                        await Task.Delay(50);
+                        await SendKeyCombo(0x11, false, false); // Ctrl Down
+                        await SendKeyCombo(0x56, true, false);  // V Down
+                        await SendKeyCombo(0x56, true, true);   // V Up
+                        await SendKeyCombo(0x11, false, true);  // Ctrl Up
+                        await Task.Delay(100);
 
-                        if (!string.IsNullOrEmpty(originalClipboard))
-                        {
-                            SetClipboardTextWin32(originalClipboard);
-                        }
+
                         System.Diagnostics.Debug.WriteLine("🎉 Успешная конвертация!");
                     }
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine("⚠️ Текст не выделен.");
-                    if (!string.IsNullOrEmpty(originalClipboard)) SetClipboardTextWin32(originalClipboard);
+                    System.Diagnostics.Debug.WriteLine("⚠️ Текст не выделен или буфер не изменился");
+                }
+
+                // ⚡ Восстанавливаем оригинальный буфер обмена в конце
+                if (!string.IsNullOrEmpty(originalClipboard))
+                {
+                    await Task.Delay(50);
+                    SetClipboardTextWin32(originalClipboard);
                 }
             }
             catch (Exception ex)
@@ -222,6 +339,7 @@ namespace KeyBoopWin
                 _isCorrecting = false;
             }
         }
+
 
         private async Task SendKeyCombo(ushort vk, bool isInjected, bool isKeyUp = false)
         {
@@ -236,10 +354,10 @@ namespace KeyBoopWin
 
         private async Task SimulateCopy()
         {
-            await SendKeyCombo(0x11, false, false);
-            await SendKeyCombo(0x43, true, false);
-            await SendKeyCombo(0x43, true, true);
-            await SendKeyCombo(0x11, false, true);
+            await SendKeyCombo(0x11, false, false); // Ctrl Down
+            await SendKeyCombo(0x43, true, false);  // C Down
+            await SendKeyCombo(0x43, true, true);   // C Up
+            await SendKeyCombo(0x11, false, true);  // Ctrl Up
             await Task.Delay(100);
         }
 
@@ -249,11 +367,10 @@ namespace KeyBoopWin
             if (settings.IsSleepMode || _isCorrecting) return;
 
             if (KeyboardHook == null || vkCodes == null || vkCodes.Count < 2) return;
-            int expectedLength = KeyboardHook.GetCurrentBufferLength();
 
             IntPtr hWnd = GetForegroundWindow();
             GetWindowThreadProcessId(hWnd, out uint processId);
-            if (processId == Process.GetCurrentProcess().Id) return;
+            if (processId == Process.GetCurrentProcess().Id) return; // Игнорируем ввод в нашем окне
 
             uint threadId = GetWindowThreadProcessId(hWnd, out _);
             IntPtr currentLayout = GetKeyboardLayout(threadId);
@@ -266,8 +383,10 @@ namespace KeyBoopWin
 
             string strCurrent = _corrector.VkCodesToString(vkCodes, currentLayout) ?? "";
             string strAlt = _corrector.VkCodesToString(vkCodes, altLayout) ?? "";
-            string cleanCurrent = new string(strCurrent.Where(c => char.IsLetter(c) || c == '[' || c == ']' || c == ';' || c == '\'' || c == ',' || c == '.' || c == '`').ToArray());
-            string cleanAlt = new string(strAlt.Where(c => char.IsLetter(c) || c == '[' || c == ']' || c == ';' || c == '\'' || c == ',' || c == '.' || c == '`').ToArray());
+
+            // ⚡ ИСПРАВЛЕНО: Удален бэктик (`) из фильтрации, чтобы он не считался частью слова
+            string cleanCurrent = new string(strCurrent.Where(c => char.IsLetter(c) || c == '[' || c == ']' || c == ';' || c == '\'' || c == ',' || c == '.').ToArray());
+            string cleanAlt = new string(strAlt.Where(c => char.IsLetter(c) || c == '[' || c == ']' || c == ';' || c == '\'' || c == ',' || c == '.').ToArray());
 
             if (cleanCurrent.Length < 2) return;
 
@@ -282,13 +401,7 @@ namespace KeyBoopWin
                         string wordToInsert = finalCorrectedWord ?? cleanAlt;
                         int charsToDelete = cleanCurrent.Length + 1;
 
-                        for (int i = 0; i < charsToDelete; i++)
-                        {
-                            if (KeyboardHook.GetCurrentBufferLength() != expectedLength) return;
-                            await SendKeyCombo(0x08, true, false);
-                            await SendKeyCombo(0x08, true, true);
-                            await Task.Delay(10);
-                        }
+                        await SendMultipleBackspaces(charsToDelete);
 
                         if (needsLayoutSwitch && altLayout != IntPtr.Zero)
                         {
@@ -317,14 +430,45 @@ namespace KeyBoopWin
             }
         }
 
+        private void SetWindowIcon(Window window)
+        {
+            try
+            {
+                string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "app.ico");
+                if (File.Exists(iconPath))
+                {
+                    window.AppWindow.SetIcon(iconPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ Не удалось установить иконку для окна: {ex.Message}");
+            }
+        }
         private Icon CreateSimpleIcon()
         {
+            // Пытаемся загрузить иконку из файла, который мы уже настроили в .csproj
+            string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "app.ico");
+
+            if (File.Exists(iconPath))
+            {
+                try
+                {
+                    return new Icon(iconPath);
+                }
+                catch
+                {
+                    System.Diagnostics.Debug.WriteLine("⚠️ Не удалось загрузить app.ico для трея, используем запасной вариант");
+                }
+            }
+
+            // Запасной вариант: генерация программно (синий квадрат с буквой K)
             Bitmap bitmap = new Bitmap(32, 32);
             using (Graphics g = Graphics.FromImage(bitmap))
             {
-                g.Clear(Color.FromArgb(0, 120, 215));
+                g.Clear(System.Drawing.Color.FromArgb(255, 0, 120, 215));
                 using (Font font = new Font("Arial", 20, FontStyle.Bold))
-                using (Brush brush = new SolidBrush(Color.White))
+                using (Brush brush = new SolidBrush(System.Drawing.Color.White))
                 {
                     g.DrawString("K", font, brush, 6, 4);
                 }

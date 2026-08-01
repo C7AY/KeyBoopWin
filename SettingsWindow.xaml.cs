@@ -48,11 +48,14 @@ namespace KeyBoopWin
         [DllImport("user32.dll")]
         private static extern short GetAsyncKeyState(int vKey);
 
+        private bool _isLoading = true;
+
         public SettingsWindow()
         {
             this.InitializeComponent();
             this.AppWindow.Resize(new Windows.Graphics.SizeInt32(850, 900));
 
+            // Загружаем текущие настройки
             _currentSettings = SettingsManager.Load();
 
             // Загрузка настроек ручного исправления
@@ -94,6 +97,8 @@ namespace KeyBoopWin
             CenterWindowOnScreen();
 
             this.Content.PreviewKeyDown += SettingsWindow_PreviewKeyDown;
+
+            _isLoading = false; // ⚡ Загрузка завершена, теперь можно сохранять изменения
         }
 
         private void SettingsWindow_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
@@ -181,7 +186,17 @@ namespace KeyBoopWin
         }
 
         // === ОБРАБОТЧИКИ ТУМБЛЕРОВ ===
-        private void ManualFixToggle_Toggled(object sender, RoutedEventArgs e) => UpdateManualFixUI();
+        private void ManualFixToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            UpdateManualFixUI();
+            ApplySettingsImmediately(); // ⚡ Мгновенно сохраняем в settings.json
+
+            // Сообщаем главному приложению об изменении
+            if (App.Current is App app && app.KeyboardHook != null)
+            {
+                // Хук сам проверит EnableManualFixHotkeys при следующем нажатии (см. правку ниже)
+            }
+        }
 
         private void VoiceInputToggle_Toggled(object sender, RoutedEventArgs e)
         {
@@ -207,41 +222,71 @@ namespace KeyBoopWin
             ApplySettingsImmediately();
         }
 
-        private void SleepModeToggle_Toggled(object sender, RoutedEventArgs e) { }
-        private void AutoStartToggle_Toggled(object sender, RoutedEventArgs e) { }
+        
 
-        // === ПРИМЕНЕНИЕ НАСТРОЕК СРАЗУ ===
+        private void SleepModeToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            ApplySettingsImmediately(); // ⚡ Мгновенно сохраняем в settings.json
+
+            // ⚡ МГНОВЕННО применяем состояние к глобальному хуку
+            if (App.Current is App app && app.KeyboardHook != null)
+            {
+                app.KeyboardHook.SetEnabled(!SleepModeToggle.IsOn);
+            }
+        }
+        private void AutoStartToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            // ⚡ МГНОВЕННО применяем изменение в реестр (с учетом обхода Диспетчера задач)
+            SettingsManager.SetAutoStart(AutoStartToggle.IsOn);
+
+            // Синхронизируем с settings.json
+            ApplySettingsImmediately();
+
+            System.Diagnostics.Debug.WriteLine($"⚡ Автозагрузка в реестре {(AutoStartToggle.IsOn ? "ВКЛЮЧЕНА" : "ВЫКЛЮЧЕНА")}");
+        }
         private void ApplySettingsImmediately()
         {
-            var settings = new AppSettings
-            {
-                EnableManualFixHotkeys = ManualFixToggle.IsOn,
-                ConvertToRuKey = _tempRuKey,
-                ConvertToEnKey = _tempEnKey,
 
-                EnableVoiceInputHotkey = VoiceInputToggle.IsOn,
-                VoiceInputHotkeyModifiers = _tempVoiceModifiers,
-                VoiceInputHotkeyKey = _tempVoiceKey,
+            if (_isLoading) return;
 
-                EnableTranslatorHotkey = TranslatorToggle.IsOn,
-                TranslatorHotkeyModifiers = _tempTranslatorModifiers,
-                TranslatorHotkeyKey = _tempTranslatorKey,
+            // 1. Загружаем ТЕКУЩИЕ настройки, чтобы не потерять другие поля (AutoStart, уведомления и т.д.)
+            var settings = SettingsManager.Load();
 
-                EnableConverterHotkey = ConverterToggle.IsOn,
-                ConverterHotkeyModifiers = _tempConverterModifiers,
-                ConverterHotkeyKey = _tempConverterKey,
+            // 2. Обновляем только те поля, которые относятся к тумблерам
+            settings.EnableManualFixHotkeys = ManualFixToggle?.IsOn ?? settings.EnableManualFixHotkeys;
+            settings.EnableVoiceInputHotkey = VoiceInputToggle?.IsOn ?? settings.EnableVoiceInputHotkey;
+            settings.EnableTranslatorHotkey = TranslatorToggle?.IsOn ?? settings.EnableTranslatorHotkey;
+            settings.EnableConverterHotkey = ConverterToggle?.IsOn ?? settings.EnableConverterHotkey;
+            settings.EnableScreenTranslatorHotkey = ScreenTranslatorToggle?.IsOn ?? settings.EnableScreenTranslatorHotkey;
+            settings.AutoStart = AutoStartToggle?.IsOn ?? settings.AutoStart;
+            settings.IsSleepMode = SleepModeToggle?.IsOn ?? settings.IsSleepMode;
 
-                EnableScreenTranslatorHotkey = ScreenTranslatorToggle.IsOn,
-                ScreenTranslatorHotkeyModifiers = _tempScreenTranslatorModifiers,
-                ScreenTranslatorHotkeyKey = _tempScreenTranslatorKey,
+            // 3. Обновляем текущие значения хоткеев
+            settings.ConvertToRuKey = _tempRuKey;
+            settings.ConvertToEnKey = _tempEnKey;
 
-                IsSleepMode = SleepModeToggle.IsOn,
-                RuDictionaryPath = _ruDictionaryPath,
-                EnDictionaryPath = _enDictionaryPath,
-                BanwordDictionaryPath = _banwordDictionaryPath
-            };
+            settings.VoiceInputHotkeyModifiers = _tempVoiceModifiers;
+            settings.VoiceInputHotkeyKey = _tempVoiceKey;
 
+            settings.TranslatorHotkeyModifiers = _tempTranslatorModifiers;
+            settings.TranslatorHotkeyKey = _tempTranslatorKey;
+
+            settings.ConverterHotkeyModifiers = _tempConverterModifiers;
+            settings.ConverterHotkeyKey = _tempConverterKey;
+
+            settings.ScreenTranslatorHotkeyModifiers = _tempScreenTranslatorModifiers;
+            settings.ScreenTranslatorHotkeyKey = _tempScreenTranslatorKey;
+
+            // 4. Обновляем пути к словарям
+            settings.RuDictionaryPath = _ruDictionaryPath;
+            settings.EnDictionaryPath = _enDictionaryPath;
+            settings.BanwordDictionaryPath = _banwordDictionaryPath;
+
+            // 5. Сохраняем обновленный объект обратно в файл
             SettingsManager.Save(settings);
+
+            // Логируем для проверки
+            System.Diagnostics.Debug.WriteLine($"💾 Настройки мгновенно сохранены: ManualFix={settings.EnableManualFixHotkeys}, SleepMode={settings.IsSleepMode}");
         }
 
         // === ОБРАБОТЧИКИ КНОПОК "ИЗМЕНИТЬ" ===
@@ -250,6 +295,7 @@ namespace KeyBoopWin
             _isRecordingRu = true; _isRecordingEn = false; _isRecordingVoice = false; _isRecordingTranslator = false; _isRecordingConverter = false; _isRecordingScreenTranslator = false;
             TxtConvertToRu.Text = "⌨️ Нажмите Ctrl + клавишу...";
             TxtConvertToRu.Foreground = new SolidColorBrush(Colors.Yellow);
+            App.IsRecordingHotkey = true; // ⚡ Блокируем глобальный перехват
         }
 
         private void RecordToEn_Click(object sender, RoutedEventArgs e)
@@ -257,14 +303,16 @@ namespace KeyBoopWin
             _isRecordingEn = true; _isRecordingRu = false; _isRecordingVoice = false; _isRecordingTranslator = false; _isRecordingConverter = false; _isRecordingScreenTranslator = false;
             TxtConvertToEn.Text = "⌨️ Нажмите Ctrl + клавишу...";
             TxtConvertToEn.Foreground = new SolidColorBrush(Colors.Yellow);
+            App.IsRecordingHotkey = true; // ⚡ Блокируем глобальный перехват
         }
 
         private void RecordVoiceInput_Click(object sender, RoutedEventArgs e)
         {
             _isRecordingVoice = true; _isRecordingRu = false; _isRecordingEn = false; _isRecordingTranslator = false; _isRecordingConverter = false; _isRecordingScreenTranslator = false;
-            TxtVoiceInput.Text = "️ Нажмите комбинацию...";
+            TxtVoiceInput.Text = "⌨️ Нажмите комбинацию...";
             TxtVoiceInput.Foreground = new SolidColorBrush(Colors.Yellow);
             VoiceInputBorder.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 165, 0));
+            App.IsRecordingHotkey = true; // ⚡ Блокируем глобальный перехват
         }
 
         private void RecordTranslator_Click(object sender, RoutedEventArgs e)
@@ -273,14 +321,16 @@ namespace KeyBoopWin
             TxtTranslator.Text = "⌨️ Нажмите комбинацию...";
             TxtTranslator.Foreground = new SolidColorBrush(Colors.Yellow);
             TranslatorBorder.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 165, 0));
+            App.IsRecordingHotkey = true; // ⚡ Блокируем глобальный перехват
         }
 
         private void RecordConverter_Click(object sender, RoutedEventArgs e)
         {
             _isRecordingConverter = true; _isRecordingRu = false; _isRecordingEn = false; _isRecordingVoice = false; _isRecordingTranslator = false; _isRecordingScreenTranslator = false;
-            TxtConverter.Text = "️ Нажмите комбинацию...";
+            TxtConverter.Text = "⌨️ Нажмите комбинацию...";
             TxtConverter.Foreground = new SolidColorBrush(Colors.Yellow);
             ConverterBorder.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 165, 0));
+            App.IsRecordingHotkey = true; // ⚡ Блокируем глобальный перехват
         }
 
         private void RecordScreenTranslator_Click(object sender, RoutedEventArgs e)
@@ -289,15 +339,79 @@ namespace KeyBoopWin
             TxtScreenTranslator.Text = "⌨️ Нажмите комбинацию...";
             TxtScreenTranslator.Foreground = new SolidColorBrush(Colors.Yellow);
             ScreenTranslatorBorder.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 165, 0));
+            App.IsRecordingHotkey = true; // ⚡ Блокируем глобальный перехват
         }
 
         // === ОБРАБОТЧИКИ КНОПОК "СБРОС" ===
-        private void ResetToRu_Click(object sender, RoutedEventArgs e) { _tempRuKey = 219; UpdateTextBoxes(); ApplySettingsImmediately(); }
-        private void ResetToEn_Click(object sender, RoutedEventArgs e) { _tempEnKey = 221; UpdateTextBoxes(); ApplySettingsImmediately(); }
-        private void ResetVoiceInput_Click(object sender, RoutedEventArgs e) { _tempVoiceModifiers = VirtualKeyModifiers.None; _tempVoiceKey = VirtualKey.F1; UpdateHotkeyDisplays(); ApplySettingsImmediately(); }
-        private void ResetTranslator_Click(object sender, RoutedEventArgs e) { _tempTranslatorModifiers = VirtualKeyModifiers.None; _tempTranslatorKey = VirtualKey.F2; UpdateHotkeyDisplays(); ApplySettingsImmediately(); }
-        private void ResetConverter_Click(object sender, RoutedEventArgs e) { _tempConverterModifiers = VirtualKeyModifiers.None; _tempConverterKey = VirtualKey.F3; UpdateHotkeyDisplays(); ApplySettingsImmediately(); }
-        private void ResetScreenTranslator_Click(object sender, RoutedEventArgs e) { _tempScreenTranslatorModifiers = VirtualKeyModifiers.None; _tempScreenTranslatorKey = VirtualKey.F10; UpdateHotkeyDisplays(); ApplySettingsImmediately(); }
+        private void ResetToRu_Click(object sender, RoutedEventArgs e)
+        {
+            _tempRuKey = 219;
+            UpdateTextBoxes();
+            ApplySettingsImmediately();
+            ApplyHotkeysToHook(); // ⚡ Применяем стандартное значение к хуку сразу
+            App.LastHotkeyChangeTime = DateTime.Now;
+        }
+
+        private void ResetToEn_Click(object sender, RoutedEventArgs e)
+        {
+            _tempEnKey = 221;
+            UpdateTextBoxes();
+            ApplySettingsImmediately();
+            ApplyHotkeysToHook(); // ⚡ Применяем стандартное значение к хуку сразу
+            App.LastHotkeyChangeTime = DateTime.Now;
+        }
+
+        private void ResetVoiceInput_Click(object sender, RoutedEventArgs e)
+        {
+            _tempVoiceModifiers = VirtualKeyModifiers.None;
+            _tempVoiceKey = VirtualKey.F1;
+            UpdateHotkeyDisplays();
+            ApplySettingsImmediately();
+            App.LastHotkeyChangeTime = DateTime.Now;
+        }
+
+        private void ResetTranslator_Click(object sender, RoutedEventArgs e)
+        {
+            _tempTranslatorModifiers = VirtualKeyModifiers.None;
+            _tempTranslatorKey = VirtualKey.F2;
+            UpdateHotkeyDisplays();
+            ApplySettingsImmediately();
+            App.LastHotkeyChangeTime = DateTime.Now;
+        }
+
+        private void ResetConverter_Click(object sender, RoutedEventArgs e)
+        {
+            _tempConverterModifiers = VirtualKeyModifiers.None;
+            _tempConverterKey = VirtualKey.F3;
+            UpdateHotkeyDisplays();
+            ApplySettingsImmediately();
+            App.LastHotkeyChangeTime = DateTime.Now;
+        }
+
+        private void ResetScreenTranslator_Click(object sender, RoutedEventArgs e)
+        {
+            _tempScreenTranslatorModifiers = VirtualKeyModifiers.None;
+            _tempScreenTranslatorKey = VirtualKey.F10;
+            UpdateHotkeyDisplays();
+            ApplySettingsImmediately();
+            App.LastHotkeyChangeTime = DateTime.Now;
+        }
+
+        // ⚡ НОВЫЙ МЕТОД: Применяет хоткеи к хуку сразу
+        private void ApplyHotkeysToHook()
+        {
+            if (App.Current is App app && app.KeyboardHook != null)
+            {
+                app.KeyboardHook.ConvertToRuKey = _tempRuKey;
+                app.KeyboardHook.ConvertToEnKey = _tempEnKey;
+                System.Diagnostics.Debug.WriteLine($"⚡ Хоткеи ПРИМЕНЕНЫ к хуку: RU={_tempRuKey}, EN={_tempEnKey}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("⚠️ ОШИБКА: Не удалось применить хоткеи. KeyboardHook равен null!");
+            }
+        }
+
 
         // === ОБРАБОТКА НАЖАТИЙ КЛАВИШ ===
         private void HandleKeyPress(KeyRoutedEventArgs e, ref int targetKey, ref bool isRecordingFlag, string mode)
@@ -309,6 +423,10 @@ namespace KeyBoopWin
             var greenBrush = new SolidColorBrush(Colors.LimeGreen);
             if (mode == "RU") TxtConvertToRu.Foreground = greenBrush; else TxtConvertToEn.Foreground = greenBrush;
             ApplySettingsImmediately();
+            ApplyHotkeysToHook();
+
+            App.LastHotkeyChangeTime = DateTime.Now; // ⚡ Обновляем время изменения
+            App.IsRecordingHotkey = false; // ⚡ Разблокируем глобальный перехват
         }
 
         private void HandleWindowHotkeyKeyPress(KeyRoutedEventArgs e, ref VirtualKeyModifiers modifiers, ref VirtualKey key, ref bool isRecordingFlag, Border border, TextBlock textBlock, string functionName)
@@ -321,12 +439,13 @@ namespace KeyBoopWin
             if ((GetAsyncKeyState(0x10) & 0x8000) != 0) newModifiers |= VirtualKeyModifiers.Shift;
             if ((GetAsyncKeyState(0x5B) & 0x8000) != 0 || (GetAsyncKeyState(0x5C) & 0x8000) != 0) newModifiers |= VirtualKeyModifiers.Windows;
 
-            //  ПРОВЕРКА НА КОНФЛИКТЫ
             if (CheckHotkeyConflict(newModifiers, e.Key, functionName))
             {
                 isRecordingFlag = false;
                 border.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 120, 212));
                 UpdateHotkeyDisplays();
+                App.LastHotkeyChangeTime = DateTime.Now; // ⚡ Даже при конфликте сбрасываем таймер
+                App.IsRecordingHotkey = false;
                 return;
             }
 
@@ -336,6 +455,9 @@ namespace KeyBoopWin
             border.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 120, 212));
             UpdateHotkeyDisplays();
             ApplySettingsImmediately();
+
+            App.LastHotkeyChangeTime = DateTime.Now; // ⚡ Обновляем время изменения
+            App.IsRecordingHotkey = false; // ⚡ Разблокируем глобальный перехват
         }
 
         // ⚡ ПРОВЕРКА КОНФЛИКТОВ ХОТКЕЕВ
@@ -492,6 +614,8 @@ namespace KeyBoopWin
                 UpdateDictionaryPaths();
                 ApplyNewDictionaries();
 
+                ApplySettingsImmediately();
+
                 var dialog = new ContentDialog { Title = "✅ Обновление завершено", Content = "Словари успешно обновлены с GitHub!", CloseButtonText = "OK", XamlRoot = this.Content.XamlRoot };
                 await dialog.ShowAsync();
             }
@@ -511,6 +635,7 @@ namespace KeyBoopWin
         private void Save_Click(object sender, RoutedEventArgs e)
         {
             ApplySettingsImmediately();
+
             SettingsManager.SetAutoStart(AutoStartToggle.IsOn);
 
             // Применяем изменения к хуку

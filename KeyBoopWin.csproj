@@ -5,15 +5,18 @@
 		<TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
 		<RootNamespace>KeyBoopWin</RootNamespace>
 		<ApplicationManifest>app.manifest</ApplicationManifest>
-		<Platforms>x86;x64;ARM64</Platforms>
-		<RuntimeIdentifiers>win-x86;win-x64;win-arm64</RuntimeIdentifiers>
+		<Platforms>x64</Platforms>
+		<RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
 		<PublishProfile>win-$(Platform).pubxml</PublishProfile>
 		<UseWinUI>true</UseWinUI>
 		<EnableMsixTooling>false</EnableMsixTooling>
 		<WindowsPackageType>None</WindowsPackageType>
+		<WindowsAppSDKSelfContained>false</WindowsAppSDKSelfContained>
+		<PublishReadyToRun>false</PublishReadyToRun>
 		<Nullable>enable</Nullable>
 		<NoWarn>NU1605;NU1701</NoWarn>
 		<NoWarn>CA1416;NU1605;NU1701</NoWarn>
+		<ApplicationIcon>Assets\app.ico</ApplicationIcon>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -26,13 +29,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<Content Include="Assets\SplashScreen.scale-200.png" />
-		<Content Include="Assets\LockScreenLogo.scale-200.png" />
-		<Content Include="Assets\Square150x150Logo.scale-200.png" />
-		<Content Include="Assets\Square44x44Logo.scale-200.png" />
-		<Content Include="Assets\Square44x44Logo.targetsize-24_altform-unplated.png" />
-		<Content Include="Assets\StoreLogo.png" />
-		<Content Include="Assets\Wide310x150Logo.scale-200.png" />
 		<Content Include="Resources\WindowsAppRuntimeInstall-x64.exe">
 			<CopyToOutputDirectory>Never</CopyToOutputDirectory>
 		</Content>
@@ -180,4 +176,21 @@
 	<ItemGroup>
 		<Folder Include="Models\" />
 	</ItemGroup>
+
+	<ItemGroup>
+	  <Content Update="Assets\app.ico">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </Content>
+	</ItemGroup>
+
+	<Target Name="CopyWinUIBootstrap" AfterTargets="Publish">
+		<ItemGroup>
+			<!-- Берем файлы из папки, где они точно есть (OutDir), и кладем в PublishDir -->
+			<BootstrapFiles Include="$(OutDir)Microsoft.WindowsAppRuntime.Bootstrap.dll" />
+			<BootstrapFiles Include="$(OutDir)Microsoft.WindowsAppRuntime.Bootstrap.net8.dll" />
+			<BootstrapFiles Include="$(OutDir)Microsoft.WindowsAppRuntime.Bootstrap.net.dll" />
+		</ItemGroup>
+		<Copy SourceFiles="@(BootstrapFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" Condition="Exists('%(FullPath)')" />
+		<Message Text="✅ Bootstrap-файлы WinUI 3 успешно скопированы в папку публикации!" Importance="high" />
+	</Target>
 </Project>

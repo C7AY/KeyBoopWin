@@ -4,28 +4,42 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Diagnostics;
-using System.Text.RegularExpressions;
 
 namespace KeyBoopWin
 {
     public static class DictionaryManager
     {
-        // Словари
-        private static HashSet<string> _ruWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        private static HashSet<string> _enWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        private static HashSet<string> _banwords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        private static HashSet<string> _ruBigrams = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Словари (теперь могут быть null для освобождения памяти)
+        private static HashSet<string> _ruWords;
+        private static HashSet<string> _enWords;
+        private static HashSet<string> _banwords;
+        private static HashSet<string> _ruBigrams;
 
-        // Флаг инициализации
         private static bool _isInitialized = false;
+        private static bool _isLoaded = false; // Флаг: загружены ли слова в память прямо сейчас
+
         public static bool EnableBanword { get; set; } = true;
 
         public static void Initialize()
         {
             if (_isInitialized) return;
+            _isInitialized = true;
+            LoadDictionariesInternal(); // При первом запуске загружаем сразу
+        }
+
+        // Внутренний метод загрузки
+        private static void LoadDictionariesInternal()
+        {
+            if (_isLoaded) return;
 
             try
             {
+                // Инициализируем коллекции, если они null
+                if (_ruWords == null) _ruWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (_enWords == null) _enWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (_banwords == null) _banwords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (_ruBigrams == null) _ruBigrams = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
                 string dictDir = Path.Combine(baseDir, "Dictionaries");
 
@@ -33,138 +47,140 @@ namespace KeyBoopWin
                 string enPath = Path.Combine(dictDir, "en.txt");
                 string banwordPath = Path.Combine(dictDir, "banword.txt");
 
-                Debug.WriteLine($"📂 Путь к словарям: {dictDir}");
-                Debug.WriteLine($"📄 Файл RU существует: {File.Exists(ruPath)}");
-                Debug.WriteLine($"📄 Файл EN существует: {File.Exists(enPath)}");
-                Debug.WriteLine($"📄 Файл Banwords существует: {File.Exists(banwordPath)}");
-
-                // Загрузка русского словаря
                 if (File.Exists(ruPath))
                 {
-                    var lines = File.ReadAllLines(ruPath, Encoding.UTF8)
-                        .Where(l => !string.IsNullOrWhiteSpace(l))
-                        .ToArray();
-                    _ruWords = new HashSet<string>(lines.Select(l => l.Trim().ToLowerInvariant()), StringComparer.OrdinalIgnoreCase);
-                    Debug.WriteLine($"✅ Загружено RU слов из файла: {_ruWords.Count}. Примеры: {string.Join(", ", _ruWords.Take(5))}");
+                    var lines = File.ReadAllLines(ruPath, Encoding.UTF8).Where(l => !string.IsNullOrWhiteSpace(l));
+                    foreach (var line in lines) _ruWords.Add(line.Trim().ToLowerInvariant());
                 }
 
-                // Загрузка английского словаря
                 if (File.Exists(enPath))
                 {
-                    var lines = File.ReadAllLines(enPath, Encoding.UTF8)
-                        .Where(l => !string.IsNullOrWhiteSpace(l))
-                        .ToArray();
-                    _enWords = new HashSet<string>(lines.Select(l => l.Trim().ToLowerInvariant()), StringComparer.OrdinalIgnoreCase);
-                    Debug.WriteLine($"✅ Загружено EN слов из файла: {_enWords.Count}. Примеры: {string.Join(", ", _enWords.Take(5))}");
+                    var lines = File.ReadAllLines(enPath, Encoding.UTF8).Where(l => !string.IsNullOrWhiteSpace(l));
+                    foreach (var line in lines) _enWords.Add(line.Trim().ToLowerInvariant());
                 }
 
-                // Загрузка банвордов
                 if (File.Exists(banwordPath))
                 {
-                    var lines = File.ReadAllLines(banwordPath, Encoding.UTF8)
-                        .Where(l => !string.IsNullOrWhiteSpace(l))
-                        .ToArray();
-                    _banwords = new HashSet<string>(lines.Select(l => l.Trim().ToLowerInvariant()), StringComparer.OrdinalIgnoreCase);
-                    Debug.WriteLine($"✅ Загружено банвордов: {_banwords.Count}");
+                    var lines = File.ReadAllLines(banwordPath, Encoding.UTF8).Where(l => !string.IsNullOrWhiteSpace(l));
+                    foreach (var line in lines) _banwords.Add(line.Trim().ToLowerInvariant());
                 }
 
-                _isInitialized = true;
-                Debug.WriteLine($"🎯 ИТОГО СЛОВАРЕЙ: RU = {_ruWords.Count}, EN = {_enWords.Count}, BAN = {_banwords.Count}");
+                _isLoaded = true;
+                Debug.WriteLine($"🎯 Словари загружены в память: RU = {_ruWords.Count}, EN = {_enWords.Count}, BAN = {_banwords.Count}");
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"️ Ошибка загрузки словарей: {ex.Message}");
+                Debug.WriteLine($"⚠️ Ошибка загрузки словарей: {ex.Message}");
             }
         }
 
-        // Проверка наличия слова в словарях
-        public static bool ContainsRu(string word) => _isInitialized && _ruWords.Contains(word.ToLowerInvariant());
-        public static bool ContainsEn(string word) => _isInitialized && _enWords.Contains(word.ToLowerInvariant());
-        public static bool ContainsBanword(string word) => EnableBanword && _isInitialized && _banwords.Contains(word.ToLowerInvariant());
-        public static bool ExistsInBothDictionaries(string word) =>
-            _isInitialized &&
-            _ruWords.Contains(word.ToLowerInvariant()) &&
-            _enWords.Contains(word.ToLowerInvariant());
+        // ⚡ НОВЫЙ МЕТОД: Выгрузка словарей из памяти (для спящего режима)
+        public static void UnloadDictionaries()
+        {
+            if (!_isLoaded) return;
 
-        // Получение слов по длине
-        public static IEnumerable<string> GetRuWordsByLength(int minLength, int maxLength)
+            _ruWords?.Clear(); _ruWords = null;
+            _enWords?.Clear(); _enWords = null;
+            _banwords?.Clear(); _banwords = null;
+            _ruBigrams?.Clear(); _ruBigrams = null;
+            _isLoaded = false;
+
+            Debug.WriteLine("📚 Словари выгружены из памяти (RAM освобождена)");
+        }
+
+        // ⚡ НОВЫЙ МЕТОД: Принудительная загрузка (при выходе из спящего режима)
+        public static void LoadDictionaries()
         {
             if (!_isInitialized) Initialize();
-            return _ruWords.Where(w => w.Length >= minLength && w.Length <= maxLength);
+            LoadDictionariesInternal();
+        }
+
+        // ⚡ БЕЗОПАСНЫЕ ПРОВЕРКИ: если словари выгружены, они загрузятся автоматически (ленивая загрузка)
+        public static bool ContainsRu(string word)
+        {
+            if (!_isLoaded) LoadDictionaries();
+            return _ruWords != null && _ruWords.Contains(word.ToLowerInvariant());
+        }
+
+        public static bool ContainsEn(string word)
+        {
+            if (!_isLoaded) LoadDictionaries();
+            return _enWords != null && _enWords.Contains(word.ToLowerInvariant());
+        }
+
+        public static bool ContainsBanword(string word)
+        {
+            if (!_isLoaded) LoadDictionaries();
+            return EnableBanword && _banwords != null && _banwords.Contains(word.ToLowerInvariant());
+        }
+
+        public static bool ExistsInBothDictionaries(string word)
+        {
+            if (!_isLoaded) LoadDictionaries();
+            string lower = word.ToLowerInvariant();
+            return _ruWords != null && _enWords != null &&
+                   _ruWords.Contains(lower) && _enWords.Contains(lower);
+        }
+
+        public static IEnumerable<string> GetRuWordsByLength(int minLength, int maxLength)
+        {
+            if (!_isLoaded) LoadDictionaries();
+            return _ruWords?.Where(w => w.Length >= minLength && w.Length <= maxLength) ?? Enumerable.Empty<string>();
         }
 
         public static IEnumerable<string> GetEnWordsByLength(int minLength, int maxLength)
         {
-            if (!_isInitialized) Initialize();
-            return _enWords.Where(w => w.Length >= minLength && w.Length <= maxLength);
+            if (!_isLoaded) LoadDictionaries();
+            return _enWords?.Where(w => w.Length >= minLength && w.Length <= maxLength) ?? Enumerable.Empty<string>();
         }
 
-        // Проверка биграмм
         public static bool ContainsRuBigram(string word1, string word2)
         {
-            if (!_isInitialized) Initialize();
+            if (!_isLoaded) LoadDictionaries();
             string bigram = $"{word1.ToLowerInvariant()} {word2.ToLowerInvariant()}";
-            return _ruBigrams.Contains(bigram);
+            return _ruBigrams != null && _ruBigrams.Contains(bigram);
         }
 
-        //  НОВЫЙ МЕТОД: Перезагрузка словарей по пользовательским путям
+        // Перезагрузка словарей по пользовательским путям
         public static void ReloadDictionaries(string ruPath, string enPath, string banPath)
         {
             try
             {
                 Debug.WriteLine("🔄 Начинаем перезагрузку словарей...");
 
-                // Очищаем старые данные
+                if (_ruWords == null) _ruWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (_enWords == null) _enWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (_banwords == null) _banwords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (_ruBigrams == null) _ruBigrams = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
                 _ruWords.Clear();
                 _enWords.Clear();
                 _banwords.Clear();
                 _ruBigrams.Clear();
 
-                // ⚡ ПРЕОБРАЗУЕМ ОТНОСИТЕЛЬНЫЕ ПУТИ В АБСОЛЮТНЫЕ
                 string absRuPath = ConvertToAbsolutePath(ruPath);
                 string absEnPath = ConvertToAbsolutePath(enPath);
                 string absBanPath = ConvertToAbsolutePath(banPath);
 
-                // Загружаем русский
                 if (!string.IsNullOrEmpty(absRuPath) && File.Exists(absRuPath))
                 {
-                    var lines = File.ReadAllLines(absRuPath, Encoding.UTF8)
-                        .Where(l => !string.IsNullOrWhiteSpace(l));
+                    var lines = File.ReadAllLines(absRuPath, Encoding.UTF8).Where(l => !string.IsNullOrWhiteSpace(l));
                     foreach (var line in lines) _ruWords.Add(line.Trim().ToLowerInvariant());
-                    Debug.WriteLine($"✅ Перезагружено RU слов: {_ruWords.Count} из {absRuPath}");
-                }
-                else
-                {
-                    Debug.WriteLine($"⚠️ RU словарь не найден: {absRuPath}");
                 }
 
-                // Загружаем английский
                 if (!string.IsNullOrEmpty(absEnPath) && File.Exists(absEnPath))
                 {
-                    var lines = File.ReadAllLines(absEnPath, Encoding.UTF8)
-                        .Where(l => !string.IsNullOrWhiteSpace(l));
+                    var lines = File.ReadAllLines(absEnPath, Encoding.UTF8).Where(l => !string.IsNullOrWhiteSpace(l));
                     foreach (var line in lines) _enWords.Add(line.Trim().ToLowerInvariant());
-                    Debug.WriteLine($"✅ Перезагружено EN слов: {_enWords.Count} из {absEnPath}");
-                }
-                else
-                {
-                    Debug.WriteLine($"⚠️ EN словарь не найден: {absEnPath}");
                 }
 
-                // Загружаем банворды
                 if (!string.IsNullOrEmpty(absBanPath) && File.Exists(absBanPath))
                 {
-                    var lines = File.ReadAllLines(absBanPath, Encoding.UTF8)
-                        .Where(l => !string.IsNullOrWhiteSpace(l));
+                    var lines = File.ReadAllLines(absBanPath, Encoding.UTF8).Where(l => !string.IsNullOrWhiteSpace(l));
                     foreach (var line in lines) _banwords.Add(line.Trim().ToLowerInvariant());
-                    Debug.WriteLine($"✅ Перезагружено банвордов: {_banwords.Count} из {absBanPath}");
-                }
-                else
-                {
-                    Debug.WriteLine($"⚠️ Banword словарь не найден: {absBanPath}");
                 }
 
-                _isInitialized = true;
+                _isLoaded = true;
                 Debug.WriteLine($"🎯 ИТОГО ПОСЛЕ ПЕРЕЗАГРУЗКИ: RU = {_ruWords.Count}, EN = {_enWords.Count}, BAN = {_banwords.Count}");
             }
             catch (Exception ex)
@@ -173,17 +189,11 @@ namespace KeyBoopWin
             }
         }
 
-        // 🛠️ ВСПОМОГАТЕЛЬНЫЙ МЕТОД: Преобразование пути
         private static string ConvertToAbsolutePath(string path)
         {
-            if (string.IsNullOrEmpty(path))
-                return path;
-
-            if (Path.IsPathRooted(path))
-                return path;
-
-            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            return Path.Combine(baseDir, path);
+            if (string.IsNullOrEmpty(path)) return path;
+            if (Path.IsPathRooted(path)) return path;
+            return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path);
         }
     }
 }

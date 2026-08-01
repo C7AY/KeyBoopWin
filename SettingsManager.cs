@@ -88,19 +88,43 @@ namespace KeyBoopWin
         {
             try
             {
-                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
-                    @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true))
+                string appName = "KeyBoopWin";
+                string runPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
+                string approvedPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
+
+                // 1. Работаем с основной веткой Run
+                using (var runKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(runPath, true))
                 {
-                    if (key != null)
+                    if (runKey != null)
                     {
                         if (enable)
                         {
                             string appPath = Process.GetCurrentProcess().MainModule?.FileName ?? "";
-                            key.SetValue("KeyBoopWin", appPath);
+                            // Оборачиваем путь в кавычки на случай пробелов в имени папки
+                            runKey.SetValue(appName, $"\"{appPath}\"");
                         }
                         else
                         {
-                            key.DeleteValue("KeyBoopWin", false);
+                            runKey.DeleteValue(appName, false);
+                        }
+                    }
+                }
+
+                // 2. ХИТРОСТЬ: Работаем со скрытой веткой StartupApproved
+                using (var approvedKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(approvedPath, true))
+                {
+                    if (approvedKey != null)
+                    {
+                        if (enable)
+                        {
+                            // Если мы ВКЛЮЧАЕМ автозагрузку, удаляем запись о блокировке от Диспетчера задач
+                            approvedKey.DeleteValue(appName, false);
+                        }
+                        else
+                        {
+                            // Если мы ВЫКЛЮЧАЕМ, ставим официальный флаг "Отключено пользователем" (0x02)
+                            byte[] disabledFlag = { 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+                            approvedKey.SetValue(appName, disabledFlag, Microsoft.Win32.RegistryValueKind.Binary);
                         }
                     }
                 }
@@ -115,18 +139,44 @@ namespace KeyBoopWin
         {
             try
             {
-                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
-                    @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", false))
+                string appName = "KeyBoopWin";
+                string runPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
+                string approvedPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
+
+                // 1. Сначала проверяем, есть ли вообще запись в Run
+                using (var runKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(runPath, false))
                 {
-                    if (key != null)
+                    if (runKey == null || runKey.GetValue(appName) == null)
                     {
-                        var value = key.GetValue("KeyBoopWin");
-                        return value != null;
+                        return false; // Записи нет = выключено
                     }
                 }
+
+                // 2. Проверяем, не отключил ли пользователь программу через Диспетчер задач
+                using (var approvedKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(approvedPath, false))
+                {
+                    if (approvedKey != null)
+                    {
+                        var value = approvedKey.GetValue(appName);
+                        if (value is byte[] bytes && bytes.Length > 0)
+                        {
+                            // 0x02, 0x03, 0x04, 0x06, 0x08, 0x09 означают "Disabled" в Диспетчере задач
+                            // 0x01 или 0x00 (или отсутствие ключа) означают "Enabled"
+                            if (bytes[0] != 0x01 && bytes[0] != 0x00)
+                            {
+                                return false; // Отключено через Диспетчер задач!
+                            }
+                        }
+                    }
+                }
+
+                return true; // Запись есть и НЕ заблокирована Диспетчером задач
             }
-            catch { }
-            return false;
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Ошибка проверки автозагрузки: {ex.Message}");
+                return false;
+            }
         }
     }
 }
