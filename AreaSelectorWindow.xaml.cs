@@ -71,7 +71,7 @@ namespace KeyBoopWin
 
         public async Task<Windows.Foundation.Rect?> ShowSelectionWithScreenshotAsync(byte[] screenshotBytes, int width, int height)
         {
-            // ⚡ Сохраняем скриншот
+            // Сохраняем скриншот
             ScreenshotBytes = screenshotBytes;
             ScreenshotWidth = width;
             ScreenshotHeight = height;
@@ -84,6 +84,15 @@ namespace KeyBoopWin
                 await bitmap.SetSourceAsync(stream);
             }
             BackgroundImage.Source = bitmap;
+
+            // ⚡ ПРИНУДИТЕЛЬНО ПЕРЕМЕЩАЕМ ОКНО НА ОСНОВНОЙ МОНИТОР (координаты 0,0)
+            var displays = Microsoft.UI.Windowing.DisplayArea.FindAll();
+            if (displays.Count > 0)
+            {
+                var mainDisplay = displays[0]; // Всегда берем первый (основной) монитор
+                var rect = new Windows.Graphics.RectInt32(mainDisplay.WorkArea.X, mainDisplay.WorkArea.Y, mainDisplay.WorkArea.Width, mainDisplay.WorkArea.Height);
+                this.AppWindow.MoveAndResize(rect);
+            }
 
             var hwnd = WindowNative.GetWindowHandle(this);
 

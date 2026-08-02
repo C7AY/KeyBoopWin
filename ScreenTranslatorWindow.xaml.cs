@@ -21,7 +21,9 @@ namespace KeyBoopWin
         {
             this.InitializeComponent();
             this.AppWindow.Resize(new Windows.Graphics.SizeInt32(450, 400));
-            CenterWindowOnScreen();
+
+            // ⚡ ВЫЗЫВАЕМ ПРАВИЛЬНЫЙ МЕТОД ПОЗИЦИОНИРОВАНИЯ
+            PositionWindowOnSelectedMonitor();
 
             _httpClient = new HttpClient();
             this.Closed += ScreenTranslatorWindow_Closed;
@@ -36,23 +38,57 @@ namespace KeyBoopWin
             _overlayWindow?.Close();
         }
 
-        private void CenterWindowOnScreen()
+        private void PositionWindowOnSelectedMonitor()
         {
-            var displayArea = DisplayArea.GetFromWindowId(this.AppWindow.Id, DisplayAreaFallback.Nearest);
-            if (displayArea is not null)
+            try
             {
-                var centeredPosition = this.AppWindow.Position;
-                centeredPosition.X = ((displayArea.WorkArea.Width - this.AppWindow.Size.Width) / 2);
-                centeredPosition.Y = ((displayArea.WorkArea.Height - this.AppWindow.Size.Height) / 2);
-                this.AppWindow.Move(centeredPosition);
+                var settings = SettingsManager.Load();
+                var displays = Microsoft.UI.Windowing.DisplayArea.FindAll();
+
+                int targetIndex = settings.ScreenTranslatorMonitorIndex;
+
+                // Защита от некорректного индекса
+                if (displays.Count == 0 || targetIndex < 0 || targetIndex >= displays.Count)
+                {
+                    targetIndex = 0;
+                }
+
+                var targetDisplay = displays[targetIndex];
+                var workArea = targetDisplay.WorkArea;
+
+                int windowWidth = this.AppWindow.Size.Width > 0 ? this.AppWindow.Size.Width : 450;
+                int windowHeight = this.AppWindow.Size.Height > 0 ? this.AppWindow.Size.Height : 400;
+
+                int x = workArea.X + ((workArea.Width - windowWidth) / 2);
+                int y = workArea.Y + ((workArea.Height - windowHeight) / 2);
+
+                // ⚡ ИСПОЛЬЗУЕМ MoveAndResize - это НАМНОГО надежнее в WinUI 3
+                var rect = new Windows.Graphics.RectInt32(x, y, windowWidth, windowHeight);
+                this.AppWindow.MoveAndResize(rect);
+
+                System.Diagnostics.Debug.WriteLine($"[ScreenTranslator] Окно перемещено на монитор {targetIndex} (X:{x}, Y:{y})");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ Ошибка позиционирования: {ex.Message}");
             }
         }
 
         public async Task TriggerScreenTranslationAsync()
         {
-            System.Diagnostics.Debug.WriteLine("📸 Шаг 1: Делаем скриншот для выбора области...");
+            System.Diagnostics.Debug.WriteLine("🎯 [Trigger] ВЫЗВАН TriggerScreenTranslationAsync");
 
-            if (_capturer == null) return;
+            System.Diagnostics.Debug.WriteLine("📍 [Trigger] Вызов PositionWindowOnSelectedMonitor...");
+            PositionWindowOnSelectedMonitor();
+            System.Diagnostics.Debug.WriteLine("✅ [Trigger] PositionWindowOnSelectedMonitor завершен");
+
+            System.Diagnostics.Debug.WriteLine(" Шаг 1: Делаем скриншот для выбора области...");
+
+            if (_capturer == null)
+            {
+                System.Diagnostics.Debug.WriteLine("❌ _capturer равен NULL!");
+                return;
+            }
 
             var screenshot = _capturer.CaptureScreenBytes();
             if (screenshot.bytes == null || screenshot.bytes.Length == 0)
@@ -60,8 +96,6 @@ namespace KeyBoopWin
                 System.Diagnostics.Debug.WriteLine("❌ Не удалось сделать скриншот");
                 return;
             }
-
-            System.Diagnostics.Debug.WriteLine($"✅ Скриншот готов: {screenshot.bytes.Length} байт, {screenshot.width}x{screenshot.height}");
 
             System.Diagnostics.Debug.WriteLine("🖱️ Шаг 2: Открываем окно выбора области...");
             var selectorWindow = new AreaSelectorWindow();
@@ -90,7 +124,7 @@ namespace KeyBoopWin
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine("❌ Выбор отменён");
+                System.Diagnostics.Debug.WriteLine(" Выбор отменён");
             }
         }
     }

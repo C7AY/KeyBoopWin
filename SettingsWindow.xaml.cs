@@ -98,6 +98,18 @@ namespace KeyBoopWin
 
             this.Content.PreviewKeyDown += SettingsWindow_PreviewKeyDown;
 
+            PopulateMonitorSelector();
+
+            // ⚡ БЕЗОПАСНАЯ установка индекса: проверяем, что он существует в списке
+            int safeIndex = _currentSettings.ScreenTranslatorMonitorIndex;
+            if (safeIndex < 0 || safeIndex >= MonitorSelector.Items.Count)
+            {
+                safeIndex = 0;
+            }
+            MonitorSelector.SelectedIndex = safeIndex;
+
+
+
             _isLoading = false; // ⚡ Загрузка завершена, теперь можно сохранять изменения
         }
 
@@ -277,6 +289,7 @@ namespace KeyBoopWin
             settings.ScreenTranslatorHotkeyModifiers = _tempScreenTranslatorModifiers;
             settings.ScreenTranslatorHotkeyKey = _tempScreenTranslatorKey;
 
+            settings.ScreenTranslatorMonitorIndex = MonitorSelector.SelectedIndex;
             // 4. Обновляем пути к словарям
             settings.RuDictionaryPath = _ruDictionaryPath;
             settings.EnDictionaryPath = _enDictionaryPath;
@@ -675,5 +688,70 @@ namespace KeyBoopWin
 
         [DllImport("user32.dll")] private static extern IntPtr GetActiveWindow();
         [DllImport("comdlg32.dll", CharSet = CharSet.Auto, SetLastError = true)] private static extern bool GetOpenFileName(ref OPENFILENAME ofn);
+
+        private void PopulateMonitorSelector()
+        {
+            MonitorSelector.Items.Clear();
+
+            try
+            {
+                // Пробуем получить все доступные дисплеи
+                var displays = Microsoft.UI.Windowing.DisplayArea.FindAll();
+
+                System.Diagnostics.Debug.WriteLine($"[Settings] Найдено мониторов через FindAll: {displays.Count}");
+
+                if (displays.Count == 0)
+                {
+                    // Запасной вариант: используем DisplayArea.GetFromWindowId
+                    var currentDisplay = Microsoft.UI.Windowing.DisplayArea.GetFromWindowId(this.AppWindow.Id, Microsoft.UI.Windowing.DisplayAreaFallback.Nearest);
+                    if (currentDisplay != null)
+                    {
+                        MonitorSelector.Items.Add($"Основной монитор ({currentDisplay.WorkArea.Width}x{currentDisplay.WorkArea.Height})");
+                        System.Diagnostics.Debug.WriteLine("[Settings] Добавлен монитор через GetFromWindowId");
+                    }
+                    else
+                    {
+                        MonitorSelector.Items.Add("Основной монитор");
+                        System.Diagnostics.Debug.WriteLine("[Settings] Добавлен монитор по умолчанию");
+                    }
+                    return;
+                }
+
+                // Добавляем все найденные мониторы
+                for (int i = 0; i < displays.Count; i++)
+                {
+                    var display = displays[i];
+                    string monitorName;
+
+                    if (i == 0)
+                        monitorName = $"Основной монитор ({display.WorkArea.Width}x{display.WorkArea.Height})";
+                    else
+                        monitorName = $"Монитор {i + 1} ({display.WorkArea.Width}x{display.WorkArea.Height})";
+
+                    MonitorSelector.Items.Add(monitorName);
+                    System.Diagnostics.Debug.WriteLine($"[Settings] Добавлен: {monitorName}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"️ Ошибка при заполнении списка мониторов: {ex.Message}");
+                MonitorSelector.Items.Add("Основной монитор");
+            }
+        }
+
+        private void MonitorSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isLoading) return;
+
+            int selectedIndex = MonitorSelector.SelectedIndex;
+
+            // Игнорируем событие, если индекс сбросился в -1 (бывает при перерисовке)
+            if (selectedIndex >= 0)
+            {
+                _currentSettings.ScreenTranslatorMonitorIndex = selectedIndex;
+                ApplySettingsImmediately();
+                System.Diagnostics.Debug.WriteLine($"[Settings] Сохранен индекс монитора: {selectedIndex}");
+            }
+        }
     }
 }

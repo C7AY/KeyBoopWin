@@ -268,11 +268,6 @@ namespace KeyBoopWin
                 window.Activate();
             });
 
-            // 4. Экранный переводчик (без изменений, так как там нет стандартного окна)
-            CheckHotkey(settings.EnableScreenTranslatorHotkey, settings.ScreenTranslatorHotkeyModifiers, settings.ScreenTranslatorHotkeyKey, () =>
-            {
-                if (App.Current is App app) app.ActivateScreenTranslator();
-            });
         }
 
         private void CheckHotkey(bool isEnabled, VirtualKeyModifiers modifiers, VirtualKey key, Action action)

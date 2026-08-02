@@ -25,6 +25,7 @@ namespace KeyBoopWin
         private ScreenTranslatorWindow? _screenTranslatorWindow;
         public static bool IsRecordingHotkey { get; set; } = false;
         public static DateTime LastHotkeyChangeTime { get; set; } = DateTime.MinValue;
+        private ScreenTranslatorHotkeyHook? _screenTranslatorHook;
 
 
         // ⚡ ЗАЩИТА ОТ ПОВТОРНЫХ НАЖАТИЙ (Debounce)
@@ -117,6 +118,12 @@ namespace KeyBoopWin
             KeyboardHook = new GlobalKeyboardHook();
             KeyboardHook.WordCompleted += OnWordCompleted;
             KeyboardHook.ManualConvertRequested += OnManualConvertRequested;
+            // ⚡ НАДЕЖНЫЙ ГЛОБАЛЬНЫЙ ХУК ДЛЯ ЭКРАННОГО ПЕРЕВОДЧИКА (работает в играх)
+            _screenTranslatorHook = new ScreenTranslatorHotkeyHook(() =>
+            {
+                // Этот код выполнится при нажатии F10 (или другой клавиши) даже в полноэкранной игре
+                ActivateScreenTranslator();
+            });
 
             // ⚡ ИНИЦИАЛИЗАЦИЯ ЭКРАННОГО ПЕРЕВОДЧИКА (без иконки, как ты и сказал)
             _screenTranslatorWindow = new ScreenTranslatorWindow();
@@ -227,6 +234,7 @@ namespace KeyBoopWin
             {
                 KeyboardHook?.Dispose();
                 _trayIcon?.Dispose();
+                _screenTranslatorHook?.Dispose();
                 _screenTranslatorWindow?.Close();
             }
         }

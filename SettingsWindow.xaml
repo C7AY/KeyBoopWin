@@ -112,10 +112,14 @@
                             <TextBlock Text="📺 Экранный переводчик" FontWeight="SemiBold" VerticalAlignment="Center"/>
                             <ToggleSwitch x:Name="ScreenTranslatorToggle" IsOn="False" Toggled="ScreenTranslatorToggle_Toggled" VerticalAlignment="Center"/>
                         </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,10,0,0">
+                            <TextBlock Text="Монитор для окна:" VerticalAlignment="Center" Foreground="White"/>
+                            <ComboBox x:Name="MonitorSelector" Width="200" SelectionChanged="MonitorSelector_SelectionChanged"/>
+                        </StackPanel>
                         <Border Background="#1e1e1e" Padding="12" CornerRadius="8" BorderBrush="#59595d" BorderThickness="2" Margin="0,5,0,0">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="⚠️" FontSize="16" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                <TextBlock Text="Чтобы закрыть окно переводчика — нажмите ESC" FontSize="13" Foreground="White" VerticalAlignment="Center"/>
+                                <TextBlock Text="Чтобы закрыть окно переводчика — нажмите ESC, выбор монитора пока не работает..." FontSize="13" Foreground="White" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Border>
                         <Grid ColumnDefinitions="Auto, *, Auto">

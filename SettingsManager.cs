@@ -8,6 +8,7 @@ namespace KeyBoopWin
 {
     public class AppSettings
     {
+
         // === ГОРЯЧИЕ КЛАВИШИ ДЛЯ РУЧНОГО ИСПРАВЛЕНИЯ ===
         public bool EnableManualFixHotkeys { get; set; } = true; // По умолчанию включено (как сейчас)
         public int ConvertToRuKey { get; set; } = 219;
@@ -29,6 +30,7 @@ namespace KeyBoopWin
         public bool EnableScreenTranslatorHotkey { get; set; } = false;
         public VirtualKeyModifiers ScreenTranslatorHotkeyModifiers { get; set; } = VirtualKeyModifiers.None;
         public VirtualKey ScreenTranslatorHotkeyKey { get; set; } = VirtualKey.F10;
+        public int ScreenTranslatorMonitorIndex { get; set; } = 0;
 
         // === СПЯЩИЙ РЕЖИМ И АВТОЗАГРУЗКА ===
         public bool IsSleepMode { get; set; } = false;
