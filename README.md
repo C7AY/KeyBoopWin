@@ -77,7 +77,7 @@
 1. Скачайте `KeyBoopWin.zip` из раздела [Releases](https://github.com/C7AY/KeyBoopWin/releases)
 2. Распакуйте в удобное место
 3. Запустите файл `KeyBoopWin.exe`
-4. Windows App Runtime находится в папке `Resources`, если понадобится, или же при запуске Windows предложит установить и отправит на сайт Windows App Runtime, вам нужна версия 2.3.1
+4. Windows App Runtime находится в папке `Resources`, если понадобится, или же при запуске программы, Windows предложит установить и отправит на сайт Windows App Runtime, вам нужна версия 2.3.1
 
 ---
 
