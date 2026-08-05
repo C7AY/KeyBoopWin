@@ -73,17 +73,11 @@
 - **.NET 8.0 Runtime**
 - **Windows App Runtime 2.3.1**
 
-### Установка через установщик
-1. Скачайте `KeyBoopWin_Setup.exe` из раздела [Releases](https://github.com/C7AY/KeyBoopWin/releases)
-2. Запустите установщик
-3. Следуйте инструкциям мастера установки
-4. Windows App Runtime установится автоматически, если он не установлен
-
 ### Ручная установка
-1. Скачайте архив с последней версией из [Releases](https://github.com/C7AY/KeyBoopWin/releases)
-2. Распакуйте в удобную папку
-3. Установите [Windows App Runtime 2.3.1](https://learn.microsoft.com/windows/apps/windows-app-sdk/downloads) (если не установлен)
-4. Запустите `KeyBoopWin.exe`
+1. Скачайте `KeyBoopWin.zip` из раздела [Releases](https://github.com/C7AY/KeyBoopWin/releases)
+2. Распакуйте в удобное место
+3. Запустите файл KeyBoopWin.exe
+4. Windows App Runtime находится в папке Resources, если понадобится, или же при запуске Windows предложит установить и отправит на сайт Windows App Runtime, вам нужна версия 2.3.1
 
 ---
 
