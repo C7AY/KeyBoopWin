@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Security.Principal;
 using System.IO;
 using System.Text.Json;
 using Windows.System;
@@ -9,8 +10,23 @@ namespace KeyBoopWin
     public class AppSettings
     {
 
+
+        public bool EnableSystemLayoutSwitchHotkey { get; set; } = false;
+        public VirtualKeyModifiers SystemLayoutSwitchModifiers { get; set; } = VirtualKeyModifiers.Menu; // По умолчанию Alt
+        public VirtualKey SystemLayoutSwitchKey { get; set; } = VirtualKey.Space; // По умолчанию Space (Alt+Space)
+
+        public bool EnableSystemLayoutPresetHotkey { get; set; } = false;
+        public int SystemLayoutPresetIndex { get; set; } = 0;
+
+        public bool DisableAutoLayoutCorrection { get; set; } = false;
+        // === ОЗВУЧКА ЭКРАНА (PIPER TTS) ===
+        public bool EnableScreenAudioHotkey { get; set; } = false;
+        public VirtualKeyModifiers ScreenAudioHotkeyModifiers { get; set; } = VirtualKeyModifiers.None;
+        public VirtualKey ScreenAudioHotkeyKey { get; set; } = VirtualKey.F11;
+        public string SelectedPiperVoice { get; set; } = "ru_RU-dmitri-medium";
+
         // === ГОРЯЧИЕ КЛАВИШИ ДЛЯ РУЧНОГО ИСПРАВЛЕНИЯ ===
-        public bool EnableManualFixHotkeys { get; set; } = true; // По умолчанию включено (как сейчас)
+        public bool EnableManualFixHotkeys { get; set; } = true; 
         public int ConvertToRuKey { get; set; } = 219;
         public int ConvertToEnKey { get; set; } = 221;
 
@@ -26,6 +42,10 @@ namespace KeyBoopWin
         public bool EnableConverterHotkey { get; set; } = false;
         public VirtualKeyModifiers ConverterHotkeyModifiers { get; set; } = VirtualKeyModifiers.None;
         public VirtualKey ConverterHotkeyKey { get; set; } = VirtualKey.F3;
+
+        public bool EnableSymbolsHotkey { get; set; } = false;
+        public VirtualKeyModifiers SymbolsHotkeyModifiers { get; set; } = VirtualKeyModifiers.None;
+        public VirtualKey SymbolsHotkeyKey { get; set; } = VirtualKey.F4;
 
         public bool EnableScreenTranslatorHotkey { get; set; } = false;
         public VirtualKeyModifiers ScreenTranslatorHotkeyModifiers { get; set; } = VirtualKeyModifiers.None;
@@ -71,6 +91,44 @@ namespace KeyBoopWin
             return new AppSettings();
         }
 
+        // 1. Проверка прав администратора
+        public static bool IsAdministrator()
+        {
+            using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+            {
+                WindowsPrincipal principal = new WindowsPrincipal(identity);
+                return principal.IsInRole(WindowsBuiltInRole.Administrator);
+            }
+        }
+
+        // 2. Проверка, существует ли уже задача в планировщике
+        public static bool IsAutoStartEnabled()
+        {
+            try
+            {
+                ProcessStartInfo psi = new ProcessStartInfo
+                {
+                    FileName = "schtasks.exe",
+                    Arguments = "/Query /TN \"KeyBoopWin_AutoStart\"",
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+
+                using (Process process = Process.Start(psi))
+                {
+                    process?.WaitForExit();
+                    // Если код 0, значит задача найдена. Если ошибка (например, не найдена) — вернет не 0.
+                    return process?.ExitCode == 0;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public static void Save(AppSettings settings)
         {
             try
@@ -85,100 +143,74 @@ namespace KeyBoopWin
             }
         }
 
-        // Методы для автозагрузки
+
         public static void SetAutoStart(bool enable)
         {
+            // Название задачи, как оно будет отображаться в Планировщике
+            string taskName = "KeyBoopWin_AutoStart";
+
+            // Получаем точный путь к текущему .exe
+            string appPath = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName ?? "";
+
+            if (string.IsNullOrEmpty(appPath))
+            {
+                System.Diagnostics.Debug.WriteLine("Не удалось определить путь к приложению.");
+                return;
+            }
+
             try
             {
-                string appName = "KeyBoopWin";
-                string runPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
-                string approvedPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
-
-                // 1. Работаем с основной веткой Run
-                using (var runKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(runPath, true))
+                ProcessStartInfo psi = new ProcessStartInfo
                 {
-                    if (runKey != null)
-                    {
-                        if (enable)
-                        {
-                            string appPath = Process.GetCurrentProcess().MainModule?.FileName ?? "";
-                            // Оборачиваем путь в кавычки на случай пробелов в имени папки
-                            runKey.SetValue(appName, $"\"{appPath}\"");
-                        }
-                        else
-                        {
-                            runKey.DeleteValue(appName, false);
-                        }
-                    }
+                    FileName = "schtasks.exe",
+                    CreateNoWindow = true, // Прячем черное окно консоли
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+
+                if (enable)
+                {
+                    // Параметры:
+                    // /Create - создать задачу
+                    // /TN - имя задачи
+                    // /TR - путь к программе (обернут в экранированные кавычки на случай пробелов в пути)
+                    // /SC ONLOGON - запускать при входе пользователя
+                    // /RL HIGHEST - запускать с наивысшими правами (от имени Администратора)
+                    // /F - принудительно перезаписать, если такая задача уже есть
+                    psi.Arguments = $"/Create /TN \"{taskName}\" /TR \"\\\"{appPath}\\\"\" /SC ONLOGON /RL HIGHEST /F";
+                }
+                else
+                {
+                    // Параметры:
+                    // /Delete - удалить задачу
+                    // /TN - имя задачи
+                    // /F - принудительно (без запроса подтверждения)
+                    psi.Arguments = $"/Delete /TN \"{taskName}\" /F";
                 }
 
-                // 2. ХИТРОСТЬ: Работаем со скрытой веткой StartupApproved
-                using (var approvedKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(approvedPath, true))
+                // Запускаем процесс schtasks в фоне
+                using (Process process = Process.Start(psi))
                 {
-                    if (approvedKey != null)
+                    process?.WaitForExit(); // Ждем завершения команды
+
+                    if (process?.ExitCode != 0)
                     {
-                        if (enable)
-                        {
-                            // Если мы ВКЛЮЧАЕМ автозагрузку, удаляем запись о блокировке от Диспетчера задач
-                            approvedKey.DeleteValue(appName, false);
-                        }
-                        else
-                        {
-                            // Если мы ВЫКЛЮЧАЕМ, ставим официальный флаг "Отключено пользователем" (0x02)
-                            byte[] disabledFlag = { 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-                            approvedKey.SetValue(appName, disabledFlag, Microsoft.Win32.RegistryValueKind.Binary);
-                        }
+                        string error = process?.StandardError.ReadToEnd();
+                        System.Diagnostics.Debug.WriteLine($"Ошибка schtasks (код {process?.ExitCode}): {error}");
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine(enable ? "Задача автозапуска успешно создана." : "Задача автозапуска удалена.");
                     }
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Ошибка настройки автозагрузки: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Ошибка настройки автозагрузки через планировщик: {ex.Message}");
             }
         }
 
-        public static bool CheckAutoStart()
-        {
-            try
-            {
-                string appName = "KeyBoopWin";
-                string runPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
-                string approvedPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
-
-                // 1. Сначала проверяем, есть ли вообще запись в Run
-                using (var runKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(runPath, false))
-                {
-                    if (runKey == null || runKey.GetValue(appName) == null)
-                    {
-                        return false; // Записи нет = выключено
-                    }
-                }
-
-                // 2. Проверяем, не отключил ли пользователь программу через Диспетчер задач
-                using (var approvedKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(approvedPath, false))
-                {
-                    if (approvedKey != null)
-                    {
-                        var value = approvedKey.GetValue(appName);
-                        if (value is byte[] bytes && bytes.Length > 0)
-                        {
-                            // 0x02, 0x03, 0x04, 0x06, 0x08, 0x09 означают "Disabled" в Диспетчере задач
-                            // 0x01 или 0x00 (или отсутствие ключа) означают "Enabled"
-                            if (bytes[0] != 0x01 && bytes[0] != 0x00)
-                            {
-                                return false; // Отключено через Диспетчер задач!
-                            }
-                        }
-                    }
-                }
-
-                return true; // Запись есть и НЕ заблокирована Диспетчером задач
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Ошибка проверки автозагрузки: {ex.Message}");
-                return false;
-            }
-        }
+        
     }
 }

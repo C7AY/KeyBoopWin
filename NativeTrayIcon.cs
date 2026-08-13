@@ -30,8 +30,10 @@ namespace KeyBoopWin
         private const int ID_EXIT = 1004;
         private const int ID_TRANSLATOR = 1005;
         private const int ID_SCREEN_TRANSLATOR = 1006;
-        private const int ID_SLEEP_MODE = 1007;      // ⚡ НОВОЕ
-        //private const int ID_AUTO_START = 1008;       //  НОВОЕ
+        private const int ID_SLEEP_MODE = 1007;  
+        //private const int ID_AUTO_START = 1008;       
+        private const int ID_SYMBOLS = 1009;          
+        private const int ID_SCREEN_AUDIO = 1010;
 
         private IntPtr _hWnd;
         private bool _disposed = false;
@@ -44,8 +46,10 @@ namespace KeyBoopWin
         public event EventHandler? ExitRequested;
         public event EventHandler? OpenTranslatorRequested;
         public event EventHandler? OpenScreenTranslatorRequested;
-        public event EventHandler? ToggleSleepModeRequested;      // ⚡ НОВОЕ
-        //public event EventHandler? ToggleAutoStartRequested;      // ⚡ НОВОЕ
+        public event EventHandler? ToggleSleepModeRequested;   
+        //public event EventHandler? ToggleAutoStartRequested;      
+        public event EventHandler? OpenSymbolsRequested;
+        public event EventHandler? OpenScreenAudioRequested;
 
         public NativeTrayIcon(Icon icon, string toolTip)
         {
@@ -145,8 +149,10 @@ namespace KeyBoopWin
                 else if (commandId == ID_EXIT) ExitRequested?.Invoke(this, EventArgs.Empty);
                 else if (commandId == ID_TRANSLATOR) OpenTranslatorRequested?.Invoke(this, EventArgs.Empty);
                 else if (commandId == ID_SCREEN_TRANSLATOR) OpenScreenTranslatorRequested?.Invoke(this, EventArgs.Empty);
-                else if (commandId == ID_SLEEP_MODE) ToggleSleepModeRequested?.Invoke(this, EventArgs.Empty);      // ⚡ НОВОЕ
-                //else if (commandId == ID_AUTO_START) ToggleAutoStartRequested?.Invoke(this, EventArgs.Empty);     // ⚡ НОВОЕ
+                else if (commandId == ID_SLEEP_MODE) ToggleSleepModeRequested?.Invoke(this, EventArgs.Empty);      
+                else if (commandId == ID_SYMBOLS) OpenSymbolsRequested?.Invoke(this, EventArgs.Empty);              
+                //else if (commandId == ID_AUTO_START) ToggleAutoStartRequested?.Invoke(this, EventArgs.Empty);     
+                else if (commandId == ID_SCREEN_AUDIO) OpenScreenAudioRequested?.Invoke(this, EventArgs.Empty); 
             }
             return DefWindowProc(hWnd, uMsg, wParam, lParam);
         }
@@ -158,10 +164,15 @@ namespace KeyBoopWin
             AppendMenu(hMenu, MF_STRING, ID_OPEN_MAIN, "🎤 Голосовой ввод");
             AppendMenu(hMenu, MF_STRING, ID_TRANSLATOR, "🌐 Переводчик");
             AppendMenu(hMenu, MF_STRING, ID_CONVERTER, "🔤 Конвертер регистров");
-            AppendMenu(hMenu, MF_STRING, ID_SCREEN_TRANSLATOR, "📺 Экранный переводчик");
+            AppendMenu(hMenu, MF_STRING, ID_SYMBOLS, "🔣 Специальные символы");
+
             AppendMenu(hMenu, MF_SEPARATOR, 0, "");
 
-            // ⚡ ДОБАВЛЯЕМ ПУНКТЫ СПЯЩЕГО РЕЖИМА И АВТОЗАГРУЗКИ
+            AppendMenu(hMenu, MF_STRING, ID_SCREEN_TRANSLATOR, "📺 Экранный переводчик");
+            AppendMenu(hMenu, MF_STRING, ID_SCREEN_AUDIO, "🔊 Экранный диктор"); 
+                       
+            AppendMenu(hMenu, MF_SEPARATOR, 0, "");
+
             var settings = SettingsManager.Load();
             string sleepModeText = settings.IsSleepMode ? "💤 Выйти из спящего режима" : "💤 Спящий режим";
             string autoStartText = settings.AutoStart ? "❌ Отключить автозагрузку" : "✅ Включить автозагрузку";

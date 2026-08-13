@@ -4,11 +4,9 @@ using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Windowing;
 
 namespace KeyBoopWin
@@ -18,7 +16,7 @@ namespace KeyBoopWin
         private HttpClient _httpClient;
         private bool _isRuToEn = true;
 
-        //  РАЗДЕЛЬНЫЕ СЛОВАРИ для русских и английских букв
+        // РАЗДЕЛЬНЫЕ СЛОВАРИ для русских и английских букв Морзе
         private static readonly Dictionary<string, char> MorseToCharEn;
         private static readonly Dictionary<string, char> MorseToCharRu;
         private static readonly Dictionary<char, string> CharToMorseEn;
@@ -26,7 +24,7 @@ namespace KeyBoopWin
 
         static TranslatorWindow()
         {
-            // Английский словарь
+            // Английский словарь Морзе
             MorseToCharEn = new Dictionary<string, char>(StringComparer.OrdinalIgnoreCase);
             AddMorse(MorseToCharEn, ".-", 'A'); AddMorse(MorseToCharEn, "-...", 'B'); AddMorse(MorseToCharEn, "-.-.", 'C');
             AddMorse(MorseToCharEn, "-..", 'D'); AddMorse(MorseToCharEn, ".", 'E'); AddMorse(MorseToCharEn, "..-.", 'F');
@@ -38,7 +36,7 @@ namespace KeyBoopWin
             AddMorse(MorseToCharEn, "...-", 'V'); AddMorse(MorseToCharEn, ".--", 'W'); AddMorse(MorseToCharEn, "-..-", 'X');
             AddMorse(MorseToCharEn, "-.--", 'Y'); AddMorse(MorseToCharEn, "--..", 'Z');
 
-            // Русский словарь
+            // Русский словарь Морзе
             MorseToCharRu = new Dictionary<string, char>(StringComparer.OrdinalIgnoreCase);
             AddMorse(MorseToCharRu, ".-", 'А'); AddMorse(MorseToCharRu, "-...", 'Б'); AddMorse(MorseToCharRu, ".--", 'В');
             AddMorse(MorseToCharRu, "--.", 'Г'); AddMorse(MorseToCharRu, "-..", 'Д'); AddMorse(MorseToCharRu, ".", 'Е');
@@ -78,13 +76,57 @@ namespace KeyBoopWin
         public TranslatorWindow()
         {
             this.InitializeComponent();
-            this.AppWindow.Resize(new Windows.Graphics.SizeInt32(950, 650));
+            this.AppWindow.Resize(new Windows.Graphics.SizeInt32(980, 850));
             CenterWindowOnScreen();
 
             _httpClient = new HttpClient();
             this.Closed += TranslatorWindow_Closed;
             UpdateDirectionLabel();
         }
+
+        #region Binary Helpers
+        private bool IsBinaryCode(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return false;
+            bool onlyBinaryChars = text.All(c => c == '0' || c == '1' || c == ' ');
+            bool hasBits = text.Contains('0') || text.Contains('1');
+            return hasBits && onlyBinaryChars;
+        }
+
+        // Кодирование текста в двоичные 8-битные блоки (стандарт UTF-8)
+        private string EncodeToBinary(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return "";
+            byte[] bytes = Encoding.UTF8.GetBytes(text);
+            return string.Join(" ", bytes.Select(b => Convert.ToString(b, 2).PadLeft(8, '0')));
+        }
+
+        // Расшифровка binary строго через UTF-8
+        private string DecodeBinary(string binaryText)
+        {
+            if (string.IsNullOrWhiteSpace(binaryText)) return "";
+
+            try
+            {
+                string[] tokens = binaryText.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                List<byte> bytes = new List<byte>();
+
+                foreach (string token in tokens)
+                {
+                    if (token.Length == 8 && token.All(c => c == '0' || c == '1'))
+                    {
+                        bytes.Add(Convert.ToByte(token, 2));
+                    }
+                }
+
+                return Encoding.UTF8.GetString(bytes.ToArray());
+            }
+            catch
+            {
+                return binaryText;
+            }
+        }
+        #endregion
 
         private void TranslatorWindow_Closed(object sender, WindowEventArgs args)
         {
@@ -109,58 +151,90 @@ namespace KeyBoopWin
 
             if (IsMorseCode(input))
             {
-                // Это Морзе - декодируем на оба языка
+                // === 1. ВВЕДЕН МОРЗЕ ===
                 string decodedEn = DecodeMorse(input, MorseToCharEn);
                 string decodedRu = DecodeMorse(input, MorseToCharRu);
 
-                // Показываем расшифровку в нижних блоках (вместо кода Морзе)
                 if (_isRuToEn)
                 {
-                    LeftMorseText.Text = decodedRu;   // Русская расшифровка слева
-                    RightMorseText.Text = decodedEn;  // Английская расшифровка справа
-                    OutputText.Text = decodedEn;      // Перевод в правое поле
+                    LeftMorseText.Text = decodedRu;
+                    RightMorseText.Text = decodedEn;
+                    OutputText.Text = decodedEn;
+
+                    LeftBinaryText.Text = EncodeToBinary(decodedRu);
+                    RightBinaryText.Text = EncodeToBinary(decodedEn);
                 }
                 else
                 {
-                    LeftMorseText.Text = decodedEn;   // Английская расшифровка слева
-                    RightMorseText.Text = decodedRu;  // Русская расшифровка справа
-                    OutputText.Text = decodedRu;      // Перевод в правое поле
+                    LeftMorseText.Text = decodedEn;
+                    RightMorseText.Text = decodedRu;
+                    OutputText.Text = decodedRu;
+
+                    LeftBinaryText.Text = EncodeToBinary(decodedEn);
+                    RightBinaryText.Text = EncodeToBinary(decodedRu);
                 }
 
-                UpdateMorseLabels();
+                UpdateDynamicLabels();
+            }
+            else if (IsBinaryCode(input))
+            {
+                // === 2. ВВЕДЕН БИНАРНЫЙ КОД (UTF-8) ===
+                string decodedText = DecodeBinary(input);
+
+                if (_isRuToEn)
+                {
+                    LeftBinaryText.Text = decodedText;
+                    LeftMorseText.Text = EncodeToMorse(decodedText, CharToMorseRu);
+                }
+                else
+                {
+                    LeftBinaryText.Text = decodedText;
+                    LeftMorseText.Text = EncodeToMorse(decodedText, CharToMorseEn);
+                }
+
+                UpdateDynamicLabels();
             }
             else
             {
-                // Обычный текст - кодируем в Морзе
+                // === 3. ВВЕДЕН ОБЫЧНЫЙ ТЕКСТ ===
                 if (_isRuToEn)
                 {
                     LeftMorseText.Text = EncodeToMorse(input, CharToMorseRu);
+                    LeftBinaryText.Text = EncodeToBinary(input);
+
                     if (!string.IsNullOrEmpty(OutputText.Text))
                     {
                         RightMorseText.Text = EncodeToMorse(OutputText.Text, CharToMorseEn);
+                        RightBinaryText.Text = EncodeToBinary(OutputText.Text);
                     }
                     else
                     {
                         RightMorseText.Text = "";
+                        RightBinaryText.Text = "";
                     }
                 }
                 else
                 {
                     LeftMorseText.Text = EncodeToMorse(input, CharToMorseEn);
+                    LeftBinaryText.Text = EncodeToBinary(input);
+
                     if (!string.IsNullOrEmpty(OutputText.Text))
                     {
                         RightMorseText.Text = EncodeToMorse(OutputText.Text, CharToMorseRu);
+                        RightBinaryText.Text = EncodeToBinary(OutputText.Text);
                     }
                     else
                     {
                         RightMorseText.Text = "";
+                        RightBinaryText.Text = "";
                     }
                 }
 
-                UpdateMorseLabels();
+                UpdateDynamicLabels();
             }
         }
 
+        #region Morse Helpers
         private bool IsMorseCode(string text)
         {
             if (string.IsNullOrWhiteSpace(text)) return false;
@@ -211,6 +285,7 @@ namespace KeyBoopWin
 
             return decodedText.ToString().Trim();
         }
+        #endregion
 
         private async void Translate_Click(object sender, RoutedEventArgs e)
         {
@@ -221,28 +296,98 @@ namespace KeyBoopWin
                 return;
             }
 
+            string textToTranslate = inputText;
+            bool inputIsMorse = IsMorseCode(inputText);
+            bool inputIsBinary = IsBinaryCode(inputText);
+
+            // 1. Извлекаем расшифрованный текст для Google Translate
+            if (inputIsMorse)
+            {
+                textToTranslate = _isRuToEn
+                    ? DecodeMorse(inputText, MorseToCharRu)
+                    : DecodeMorse(inputText, MorseToCharEn);
+            }
+            else if (inputIsBinary)
+            {
+                textToTranslate = DecodeBinary(inputText);
+            }
+
             string sourceLang = _isRuToEn ? "ru" : "en";
             string targetLang = _isRuToEn ? "en" : "ru";
 
             try
             {
                 OutputText.Text = "🔄 Перевод...";
-                string translatedText = await TranslateWithGoogleAsync(inputText, sourceLang, targetLang);
+                string translatedText = await TranslateWithGoogleAsync(textToTranslate, sourceLang, targetLang);
                 OutputText.Text = translatedText;
 
-                // Кодируем ОБА текста в Морзе
-                if (_isRuToEn)
+                // 2. Логика заполнения нижних полей
+                if (inputIsMorse)
                 {
-                    LeftMorseText.Text = EncodeToMorse(inputText, CharToMorseRu);
-                    RightMorseText.Text = EncodeToMorse(translatedText, CharToMorseEn);
+                    // Для Морзе: в нижних полях Морзе показываем расшифровку слов (ПРИВЕТ / HELLO), 
+                    // а в Binary — их двоичный код
+                    string decodedEn = DecodeMorse(inputText, MorseToCharEn);
+                    string decodedRu = DecodeMorse(inputText, MorseToCharRu);
+
+                    if (_isRuToEn)
+                    {
+                        LeftMorseText.Text = decodedRu;
+                        RightMorseText.Text = translatedText;
+
+                        LeftBinaryText.Text = EncodeToBinary(decodedRu);
+                        RightBinaryText.Text = EncodeToBinary(translatedText);
+                    }
+                    else
+                    {
+                        LeftMorseText.Text = decodedEn;
+                        RightMorseText.Text = translatedText;
+
+                        LeftBinaryText.Text = EncodeToBinary(decodedEn);
+                        RightBinaryText.Text = EncodeToBinary(translatedText);
+                    }
+                }
+                else if (inputIsBinary)
+                {
+                    // Для Binary: в полях Binary показываем расшифрованные слова
+                    if (_isRuToEn)
+                    {
+                        LeftBinaryText.Text = textToTranslate;
+                        RightBinaryText.Text = translatedText;
+
+                        LeftMorseText.Text = EncodeToMorse(textToTranslate, CharToMorseRu);
+                        RightMorseText.Text = EncodeToMorse(translatedText, CharToMorseEn);
+                    }
+                    else
+                    {
+                        LeftBinaryText.Text = textToTranslate;
+                        RightBinaryText.Text = translatedText;
+
+                        LeftMorseText.Text = EncodeToMorse(textToTranslate, CharToMorseEn);
+                        RightMorseText.Text = EncodeToMorse(translatedText, CharToMorseRu);
+                    }
                 }
                 else
                 {
-                    LeftMorseText.Text = EncodeToMorse(inputText, CharToMorseEn);
-                    RightMorseText.Text = EncodeToMorse(translatedText, CharToMorseRu);
+                    // Стандартный ввод (обычный текст): кодируем исходник и перевод
+                    if (_isRuToEn)
+                    {
+                        LeftMorseText.Text = EncodeToMorse(textToTranslate, CharToMorseRu);
+                        RightMorseText.Text = EncodeToMorse(translatedText, CharToMorseEn);
+
+                        LeftBinaryText.Text = EncodeToBinary(textToTranslate);
+                        RightBinaryText.Text = EncodeToBinary(translatedText);
+                    }
+                    else
+                    {
+                        LeftMorseText.Text = EncodeToMorse(textToTranslate, CharToMorseEn);
+                        RightMorseText.Text = EncodeToMorse(translatedText, CharToMorseRu);
+
+                        LeftBinaryText.Text = EncodeToBinary(textToTranslate);
+                        RightBinaryText.Text = EncodeToBinary(translatedText);
+                    }
                 }
 
-                UpdateMorseLabels();
+                UpdateDynamicLabels();
             }
             catch (Exception ex)
             {
@@ -284,77 +429,64 @@ namespace KeyBoopWin
             InputText.Text = OutputText.Text;
             OutputText.Text = tempText;
 
-            // Меняем местами азбуку Морзе
+            // Меняем местами Морзе
             var tempMorse = LeftMorseText.Text;
             LeftMorseText.Text = RightMorseText.Text;
             RightMorseText.Text = tempMorse;
 
-            UpdateMorseLabels();
+            // Меняем местами Binary
+            var tempBinary = LeftBinaryText.Text;
+            LeftBinaryText.Text = RightBinaryText.Text;
+            RightBinaryText.Text = tempBinary;
+
+            UpdateDynamicLabels();
         }
 
         private void UpdateDirectionLabel()
         {
-            DirectionLabel.Text = _isRuToEn ? "ru Русский ➔ en English + Морзе" : "en English ➔ ru Русский + Морзе";
-            UpdateMorseLabels();
+            DirectionLabel.Text = _isRuToEn ? "ru Русский ➔ en English + 📡 Морзе + 💻 Binary" : "en English ➔ ru Русский + 📡 Морзе + 💻 Binary";
+            UpdateDynamicLabels();
         }
 
-        private void UpdateMorseLabels()
+        private void UpdateDynamicLabels()
         {
             if (_isRuToEn)
             {
                 LeftMorseLabel.Text = "📡 Азбука Морзе (Русский)";
                 RightMorseLabel.Text = "📡 Азбука Морзе (English)";
+
+                LeftBinaryLabel.Text = "💻 Двоичный код (Русский UTF-8)";
+                RightBinaryLabel.Text = "💻 Двоичный код (English UTF-8)";
             }
             else
             {
                 LeftMorseLabel.Text = "📡 Азбука Морзе (English)";
-                RightMorseLabel.Text = " Азбука Морзе (Русский)";
+                RightMorseLabel.Text = "📡 Азбука Морзе (Русский)";
+
+                LeftBinaryLabel.Text = "💻 Двоичный код (English UTF-8)";
+                RightBinaryLabel.Text = "💻 Двоичный код (Русский UTF-8)";
             }
         }
 
-        private void CopyInput_Click(object sender, RoutedEventArgs e)
+        #region Clipboard Helpers
+        private void CopyToClipboard(string text, string message)
         {
-            if (!string.IsNullOrEmpty(InputText.Text))
+            if (!string.IsNullOrEmpty(text))
             {
                 var dataPackage = new Windows.ApplicationModel.DataTransfer.DataPackage { RequestedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy };
-                dataPackage.SetText(InputText.Text);
+                dataPackage.SetText(text);
                 Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dataPackage);
-                ShowNotification("Исходный текст скопирован");
+                ShowNotification(message);
             }
         }
 
-        private void CopyTranslation_Click(object sender, RoutedEventArgs e)
-        {
-            if (!string.IsNullOrEmpty(OutputText.Text))
-            {
-                var dataPackage = new Windows.ApplicationModel.DataTransfer.DataPackage { RequestedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy };
-                dataPackage.SetText(OutputText.Text);
-                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dataPackage);
-                ShowNotification("Перевод скопирован в буфер обмена");
-            }
-        }
-
-        private void CopyLeftMorse_Click(object sender, RoutedEventArgs e)
-        {
-            if (!string.IsNullOrEmpty(LeftMorseText.Text))
-            {
-                var dataPackage = new Windows.ApplicationModel.DataTransfer.DataPackage { RequestedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy };
-                dataPackage.SetText(LeftMorseText.Text);
-                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dataPackage);
-                ShowNotification("Морзе скопирован");
-            }
-        }
-
-        private void CopyRightMorse_Click(object sender, RoutedEventArgs e)
-        {
-            if (!string.IsNullOrEmpty(RightMorseText.Text))
-            {
-                var dataPackage = new Windows.ApplicationModel.DataTransfer.DataPackage { RequestedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy };
-                dataPackage.SetText(RightMorseText.Text);
-                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dataPackage);
-                ShowNotification("Морзе скопирован");
-            }
-        }
+        private void CopyInput_Click(object sender, RoutedEventArgs e) => CopyToClipboard(InputText.Text, "Исходный текст скопирован");
+        private void CopyTranslation_Click(object sender, RoutedEventArgs e) => CopyToClipboard(OutputText.Text, "Перевод скопирован в буфер обмена");
+        private void CopyLeftMorse_Click(object sender, RoutedEventArgs e) => CopyToClipboard(LeftMorseText.Text, "Морзе скопирован");
+        private void CopyRightMorse_Click(object sender, RoutedEventArgs e) => CopyToClipboard(RightMorseText.Text, "Морзе скопирован");
+        private void CopyLeftBinary_Click(object sender, RoutedEventArgs e) => CopyToClipboard(LeftBinaryText.Text, "Двоичный код скопирован");
+        private void CopyRightBinary_Click(object sender, RoutedEventArgs e) => CopyToClipboard(RightBinaryText.Text, "Двоичный код скопирован");
+        #endregion
 
         private void ClearAll_Click(object sender, RoutedEventArgs e)
         {
@@ -362,6 +494,8 @@ namespace KeyBoopWin
             OutputText.Text = "";
             LeftMorseText.Text = "";
             RightMorseText.Text = "";
+            LeftBinaryText.Text = "";
+            RightBinaryText.Text = "";
             InputText.Focus(FocusState.Programmatic);
         }
 

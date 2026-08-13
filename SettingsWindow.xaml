@@ -16,7 +16,7 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,30,0">
             <StackPanel Spacing="25">
 
-                <!-- ВЕРХНЕЕ ПРЕДУПРЕЖДЕНИЕ С ПЕРЕНОСОМ СТРОКИ -->
+                
                 <Border Background="#1e1e1e" Padding="15" CornerRadius="8" BorderBrush="#59595d" BorderThickness="2">
                     <TextBlock TextWrapping="Wrap" Foreground="White" FontSize="13">
                         <Run Text="⚠️ Внимание: выбранные комбинации будут перехватываться программой глобально."/>
@@ -25,7 +25,7 @@
                     </TextBlock>
                 </Border>
 
-                <!-- === СЕКЦИЯ: Ручное исправление === -->
+                
                 <StackPanel Spacing="15">
                     <StackPanel Orientation="Horizontal" Spacing="10">
                         <TextBlock Text="⌨️ Ручное исправление выделенного текста" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
@@ -57,11 +57,54 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- === СЕКЦИЯ: Горячие клавиши для открытия окон === -->
+                <StackPanel Spacing="12" Margin="0,10,0,0">
+                    <TextBlock Text="🌐 Переключение раскладки системы" FontSize="16" FontWeight="SemiBold"/>
+
+                    <!-- Вариант 1: Популярные клавиши (ComboBox) -->
+                    <StackPanel Spacing="8" Background="#1e1e1e" Padding="12" CornerRadius="8">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="📁 Популярные варианты (как в Punto Switcher)" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <ToggleSwitch x:Name="SystemLayoutPresetToggle" IsOn="False" Toggled="SystemLayoutPresetToggle_Toggled" VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <ComboBox x:Name="SystemLayoutPresetSelector" Width="300" SelectionChanged="SystemLayoutPresetSelector_SelectionChanged" IsEnabled="False" Margin="0,5,0,0">
+                            <ComboBoxItem Content="Правый Ctrl" Tag="RightCtrl"/>
+                            <ComboBoxItem Content="Левый Ctrl" Tag="LeftCtrl"/>
+                            <ComboBoxItem Content="Правый Shift" Tag="RightShift"/>
+                            <ComboBoxItem Content="Левый Shift" Tag="LeftShift"/>
+                            <ComboBoxItem Content="Caps Lock" Tag="CapsLock"/>
+                            <ComboBoxItem Content="Alt + Space" Tag="AltSpace"/>
+                            <ComboBoxItem Content="Ctrl + Space" Tag="CtrlSpace"/>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <!-- Вариант 2: Свой собственный хоткей -->
+                    <StackPanel Spacing="8" Background="#1e1e1e" Padding="12" CornerRadius="8">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="⌨️ Своя пользовательская комбинация" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <ToggleSwitch x:Name="SystemLayoutSwitchToggle" IsOn="False" Toggled="SystemLayoutSwitchToggle_Toggled" VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <Grid ColumnDefinitions="Auto, *, Auto" Margin="0,5,0,0">
+                            <Button Grid.Column="0" x:Name="BtnRecordSystemLayout" Content="⌨️ Изменить" Click="RecordSystemLayout_Click" Height="40" Width="120" IsEnabled="False"/>
+                            <Border Grid.Column="1" x:Name="SystemLayoutBorder" Background="#0078D4" CornerRadius="4" Height="40" Margin="15,0,15,0" Opacity="0.5">
+                                <TextBlock x:Name="TxtSystemLayout" Text="Не назначено" Foreground="White" Padding="10,12" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                            </Border>
+                            <Button Grid.Column="2" x:Name="BtnResetSystemLayout" Content="🔄 Стандартный" Click="ResetSystemLayout_Click" Height="40" IsEnabled="False"/>
+                        </Grid>
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel Spacing="15">
+                    <TextBlock Text="🧩 Автокоррекция раскладки и словари" FontSize="16" FontWeight="SemiBold"/>
+                    <ToggleSwitch x:Name="DisableLayoutCorrectionToggle" Header="Отключить словари и автоисправление неправильно написанных слов" IsOn="False" Toggled="DisableLayoutCorrectionToggle_Toggled"/>
+                    <TextBlock Text="Позволяет временно отключить фоновую проверку слов и смену раскладки, оставляя все остальные функции программы (горячие клавиши, окна) рабочими." FontSize="12" Foreground="Gray" TextWrapping="Wrap"/>
+                </StackPanel>
+
                 <StackPanel Spacing="15">
                     <TextBlock Text=" Горячие клавиши для открытия окон" FontSize="16" FontWeight="SemiBold"/>
 
-                    <!-- Голосовой ввод -->
+                    
                     <StackPanel Spacing="8">
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <TextBlock Text="🎤 Голосовой ввод" FontWeight="SemiBold" VerticalAlignment="Center"/>
@@ -76,7 +119,7 @@
                         </Grid>
                     </StackPanel>
 
-                    <!-- Переводчик -->
+                    
                     <StackPanel Spacing="8">
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <TextBlock Text="🌐 Переводчик" FontWeight="SemiBold" VerticalAlignment="Center"/>
@@ -91,7 +134,7 @@
                         </Grid>
                     </StackPanel>
 
-                    <!-- Конвертер регистров -->
+                    
                     <StackPanel Spacing="8">
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <TextBlock Text="🔤 Конвертер регистров" FontWeight="SemiBold" VerticalAlignment="Center"/>
@@ -106,7 +149,21 @@
                         </Grid>
                     </StackPanel>
 
-                    <!-- Экранный переводчик -->
+                    <StackPanel Spacing="8">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="✨ Специальные символы" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <ToggleSwitch x:Name="SymbolsToggle" IsOn="False" Toggled="SymbolsToggle_Toggled" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <Grid ColumnDefinitions="Auto, *, Auto">
+                            <Button Grid.Column="0" x:Name="BtnRecordSymbols" Content="⌨️ Изменить" Click="RecordSymbols_Click" Height="40" Width="120" IsEnabled="False"/>
+                            <Border Grid.Column="1" x:Name="SymbolsBorder" Background="#0078D4" CornerRadius="4" Height="40" Margin="15,0,15,0" Opacity="0.5">
+                                <TextBlock x:Name="TxtSymbols" Text="Не назначено" Foreground="White" Padding="10,12" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                            </Border>
+                            <Button Grid.Column="2" x:Name="BtnResetSymbols" Content="🔄 Стандартный" Click="ResetSymbols_Click" Height="40" IsEnabled="False"/>
+                        </Grid>
+                    </StackPanel>
+
+
                     <StackPanel Spacing="8">
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <TextBlock Text="📺 Экранный переводчик" FontWeight="SemiBold" VerticalAlignment="Center"/>
@@ -114,12 +171,12 @@
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,10,0,0">
                             <TextBlock Text="Монитор для окна:" VerticalAlignment="Center" Foreground="White"/>
-                            <ComboBox x:Name="MonitorSelector" Width="200" SelectionChanged="MonitorSelector_SelectionChanged"/>
+                            <ComboBox x:Name="MonitorSelector" Width="250" SelectionChanged="MonitorSelector_SelectionChanged"/>
                         </StackPanel>
                         <Border Background="#1e1e1e" Padding="12" CornerRadius="8" BorderBrush="#59595d" BorderThickness="2" Margin="0,5,0,0">
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="⚠️" FontSize="16" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                <TextBlock Text="Чтобы закрыть окно переводчика — нажмите ESC, выбор монитора пока не работает..." FontSize="13" Foreground="White" VerticalAlignment="Center"/>
+                                <TextBlock Text="ℹ️" FontSize="16" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="Чтобы закрыть окно — нажмите ESC. Для захвата в играх нужны права администратора." FontSize="13" Foreground="White" TextWrapping="Wrap" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Border>
                         <Grid ColumnDefinitions="Auto, *, Auto">
@@ -132,21 +189,55 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- === СЕКЦИЯ: Спящий режим === -->
+                
+                <StackPanel Spacing="8" Margin="0,10,0,0">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="🔊 Экранный диктор" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        <ToggleSwitch x:Name="ScreenAudioToggle" IsOn="True" Toggled="ScreenAudioToggle_Toggled" VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,5,0,0">
+                        <TextBlock Text="Голоса:" VerticalAlignment="Center" Foreground="White"/>
+                        <ComboBox x:Name="PiperVoiceSelector" Width="280" SelectionChanged="PiperVoiceSelector_SelectionChanged">
+                            
+                            <ComboBoxItem Content="Dmitri (Мужской) [Piper]" Tag="ru_RU-dmitri-medium"/>
+                            <ComboBoxItem Content="Irina (Женский) [Piper]" Tag="ru_RU-irina-medium"/>
+
+                            
+                            <ComboBoxItem Content="Microsoft Irina (Русский - Женский)" Tag="Irina"/>
+                            <ComboBoxItem Content="Microsoft Pavel (Русский - Мужской)" Tag="Pavel"/>
+                        </ComboBox>
+                    </StackPanel>
+                    <Border Background="#1e1e1e" Padding="12" CornerRadius="8" BorderBrush="#59595d" BorderThickness="2" Margin="0,5,0,0">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="⚠️" FontSize="16" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="Microsoft Irina и Pavel должны быть установлены в системе" FontSize="13" Foreground="White" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    </Border>
+                    <Grid ColumnDefinitions="Auto, *, Auto">
+                        <Button Grid.Column="0" x:Name="BtnRecordScreenAudio" Content="⌨️ Изменить" Click="RecordScreenAudio_Click" Height="40" Width="120"/>
+                        <Border Grid.Column="1" x:Name="ScreenAudioBorder" Background="#0078D4" CornerRadius="4" Height="40" Margin="15,0,15,0">
+                            <TextBlock x:Name="TxtScreenAudio" Text="F11" Foreground="White" Padding="10,12" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                        </Border>
+                        <Button Grid.Column="2" x:Name="BtnResetScreenAudio" Content="🔄 Стандартный" Click="ResetScreenAudio_Click" Height="40"/>
+                    </Grid>
+                </StackPanel>
+
+                
                 <StackPanel Spacing="15">
                     <TextBlock Text="💤 Спящий режим" FontSize="16" FontWeight="SemiBold"/>
                     <ToggleSwitch x:Name="SleepModeToggle" Header="Приостановить все действия программы (хук, хоткеи, автозамену)" IsOn="False" Toggled="SleepModeToggle_Toggled"/>
                     <TextBlock Text="В спящем режиме программа не потребляет ресурсы на обработку, но остаётся запущенной. Можно переключить через трей." FontSize="12" Foreground="Gray" TextWrapping="Wrap"/>
                 </StackPanel>
 
-                <!-- === СЕКЦИЯ: Автозагрузка === -->
+                
                 <StackPanel Spacing="15">
                     <TextBlock Text=" Автозагрузка" FontSize="16" FontWeight="SemiBold"/>
                     <ToggleSwitch x:Name="AutoStartToggle" Header="Запускать программу при включении компьютера" IsOn="False" Toggled="AutoStartToggle_Toggled"/>
                     <TextBlock Text="При автозапуске программа сразу сворачивается в трей, не открывая окна." FontSize="12" Foreground="Gray" TextWrapping="Wrap"/>
                 </StackPanel>
 
-                <!-- === СЕКЦИЯ: Управление словарями === -->
+               
                 <StackPanel Spacing="15" Margin="0,10,0,0">
                     <TextBlock Text="📚 Управление словарями" FontSize="16" FontWeight="SemiBold"/>
 
@@ -159,7 +250,7 @@
                     </StackPanel>
 
                     <StackPanel Spacing="5">
-                        <TextBlock Text="🇬🇧 Английский словарь (en.txt)" FontWeight="SemiBold" FontSize="13"/>
+                        <TextBlock Text="en Английский словарь (en.txt)" FontWeight="SemiBold" FontSize="13"/>
                         <Grid ColumnDefinitions="*, Auto">
                             <TextBox x:Name="TxtEnDictionary" IsReadOnly="True" Background="#1e1e1e" Foreground="#AAAAAA" Height="35" VerticalContentAlignment="Center" Margin="0,0,10,0"/>
                             <Button Grid.Column="1" Content="📂 Обзор" Click="BrowseEnDictionary_Click" Height="35"/>

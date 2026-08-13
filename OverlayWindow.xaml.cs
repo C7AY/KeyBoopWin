@@ -65,6 +65,23 @@ namespace KeyBoopWin
             }
             BackgroundImage.Source = bitmap;
 
+            // ⚡ ПЕРЕМЕЩАЕМ ОКНО НА ТОТ МОНИТОР, КОТОРЫЙ ВЫБРАН В НАСТРОЙКАХ
+            var settings = SettingsManager.Load();
+            var displays = Microsoft.UI.Windowing.DisplayArea.FindAll();
+            int targetIndex = settings.ScreenTranslatorMonitorIndex;
+
+            if (displays.Count > 0)
+            {
+                if (targetIndex < 0 || targetIndex >= displays.Count)
+                {
+                    targetIndex = 0;
+                }
+
+                var targetDisplay = displays[targetIndex];
+                var rect = new Windows.Graphics.RectInt32(targetDisplay.WorkArea.X, targetDisplay.WorkArea.Y, targetDisplay.WorkArea.Width, targetDisplay.WorkArea.Height);
+                this.AppWindow.MoveAndResize(rect);
+            }
+
             var hwnd = WindowNative.GetWindowHandle(this);
 
             ShowWindow(hwnd, SW_MAXIMIZE);

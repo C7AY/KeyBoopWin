@@ -67,14 +67,31 @@ namespace KeyBoopWin
         {
             try
             {
-                var screen = System.Windows.Forms.Screen.PrimaryScreen;
-                if (screen == null) return null;
+                // 1. Загружаем сохраненный индекс монитора из настроек
+                var settings = SettingsManager.Load();
+                int monitorIndex = settings.ScreenTranslatorMonitorIndex;
 
-                Bitmap bmp = new Bitmap(screen.Bounds.Width, screen.Bounds.Height);
+                var screens = System.Windows.Forms.Screen.AllScreens;
+                System.Windows.Forms.Screen targetScreen;
+
+                // 2. Выбираем нужный экран безопасно
+                if (monitorIndex >= 0 && monitorIndex < screens.Length)
+                {
+                    targetScreen = screens[monitorIndex];
+                }
+                else
+                {
+                    targetScreen = System.Windows.Forms.Screen.PrimaryScreen;
+                }
+
+                if (targetScreen == null) return null;
+
+                // 3. Делаем скриншот конкретно выбранного монитора (с учетом его координат X и Y, если они идут вразнобой)
+                Bitmap bmp = new Bitmap(targetScreen.Bounds.Width, targetScreen.Bounds.Height);
 
                 using (Graphics g = Graphics.FromImage(bmp))
                 {
-                    g.CopyFromScreen(screen.Bounds.X, screen.Bounds.Y, 0, 0, screen.Bounds.Size);
+                    g.CopyFromScreen(targetScreen.Bounds.X, targetScreen.Bounds.Y, 0, 0, targetScreen.Bounds.Size);
                 }
 
                 return bmp;

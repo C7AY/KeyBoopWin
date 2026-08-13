@@ -1,0 +1,177 @@
+<Window
+    x:Class="KeyBoopWin.SymbolsWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="KeyBoopWin">
+
+    <Grid Padding="25">
+        <Grid.RowDefinitions>
+            <!-- Заголовок -->
+            <RowDefinition Height="Auto"/>
+            <!-- Поле добавления своего символа -->
+            <RowDefinition Height="Auto"/>
+            <!-- Уведомление о копировании -->
+            <RowDefinition Height="Auto"/>
+            <!-- Единый скроллируемый список с подзаголовками -->
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 1. ЗАГОЛОВОК ОКНА -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,15">
+            <TextBlock Text="🔣 Таблица спецсимволов" FontSize="28" FontWeight="Bold"/>
+            <TextBlock Text="Быстрое копирование редких знаков и символов, с возможностью добавить свои" 
+                       Foreground="Gray" FontSize="12" Margin="0,5,0,0"/>
+        </StackPanel>
+
+        <!-- 2. БЛОК ДОБАВЛЕНИЯ СВОЕГО СИМВОЛА -->
+        <Grid Grid.Row="1" Margin="0,0,0,10" ColumnSpacing="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBox x:Name="NewSymbolTextBox" 
+                     PlaceholderText="Вставьте сюда свой редкий символ (например: ❤, ☂, ✌️)..." 
+                     MaxLength="5"
+                     FontSize="14"/>
+
+            <Button Grid.Column="1" 
+                    Content="➕ Добавить символ" 
+                    Style="{StaticResource AccentButtonStyle}"
+                    Click="OnAddCustomSymbolClick"
+                    Height="38"/>
+        </Grid>
+
+        <!-- 3. ИНДИКАТОР СТАТУСА КОПИРОВАНИЯ -->
+        <Border x:Name="StatusBorder" 
+                Grid.Row="2" 
+                Background="#2D2D2D" 
+                CornerRadius="4" 
+                Padding="8,6" 
+                Margin="0,0,0,12" 
+                Visibility="Collapsed">
+            <TextBlock x:Name="StatusTextBlock" 
+                       Foreground="#00FF00" 
+                       FontSize="13" 
+                       FontWeight="SemiBold" 
+                       HorizontalAlignment="Center"/>
+        </Border>
+
+        <!-- 4. СПИСОК ВСЕХ РАЗДЕЛОВ И СИМВОЛОВ -->
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="18" Padding="0,0,10,0">
+
+                <!-- Мои сохраненные символы -->
+                <StackPanel x:Name="CustomSectionPanel" Visibility="Collapsed" Spacing="6">
+                    <TextBlock Text="⭐ Мои сохраненные символы" Style="{StaticResource SubtitleTextBlockStyle}" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                    <GridView x:Name="CustomSymbolsGrid" SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnSymbolClick">
+                        <GridView.ItemTemplate>
+                            <DataTemplate>
+                                <Button Content="{Binding}" FontSize="20" Width="44" Height="44" Padding="0" Click="OnSymbolButtonClick">
+                                    <Button.ContextFlyout>
+                                        <MenuFlyout>
+                                            <MenuFlyoutItem Text="🗑️ Удалить из списка" Click="OnDeleteCustomSymbolClick"/>
+                                        </MenuFlyout>
+                                    </Button.ContextFlyout>
+                                </Button>
+                            </DataTemplate>
+                        </GridView.ItemTemplate>
+                    </GridView>
+                </StackPanel>
+
+                <!-- Типографика -->
+                <StackPanel Spacing="6">
+                    <TextBlock Text="✍️ Типографика и пунктуация" Style="{StaticResource SubtitleTextBlockStyle}"/>
+                    <GridView x:Name="TypographyGrid" SelectionMode="None"/>
+                </StackPanel>
+
+                <!-- Математика -->
+                <StackPanel Spacing="6">
+                    <TextBlock Text="📐 Математические знаки" Style="{StaticResource SubtitleTextBlockStyle}"/>
+                    <GridView x:Name="MathGrid" SelectionMode="None"/>
+                </StackPanel>
+
+                <!-- Греческий алфавит -->
+                <StackPanel Spacing="6">
+                    <TextBlock Text="🏛️ Греческие буквы" Style="{StaticResource SubtitleTextBlockStyle}"/>
+                    <GridView x:Name="GreekGrid" SelectionMode="None"/>
+                </StackPanel>
+
+                <!-- Стрелки -->
+                <StackPanel Spacing="6">
+                    <TextBlock Text="🏹 Стрелки и указатели" Style="{StaticResource SubtitleTextBlockStyle}"/>
+                    <GridView x:Name="ArrowsGrid" SelectionMode="None"/>
+                </StackPanel>
+
+                <!-- Валюты и прочее -->
+                <StackPanel Spacing="6">
+                    <TextBlock Text="💎 Валюты и прочие знаки" Style="{StaticResource SubtitleTextBlockStyle}"/>
+                    <GridView x:Name="MiscGrid" SelectionMode="None"/>
+                </StackPanel>
+
+                <!-- Флаги -->
+                <StackPanel Spacing="6">
+                    <TextBlock Text="🏳️ Флаги" Style="{StaticResource SubtitleTextBlockStyle}"/>
+
+                    <!-- СНГ -->
+                    <TextBlock Text="🤝 СНГ" FontSize="18" Foreground="White" Margin="0,5,0,0"/>
+                    <GridView x:Name="CisFlagsGrid" SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnSymbolClick">
+                        <GridView.ItemTemplate>
+                            <DataTemplate>
+                                <Button Width="80" Height="50" Padding="0" Click="OnSymbolButtonClick" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                                    <Button.CommandParameter>
+                                        <Binding Path="Code"/>
+                                    </Button.CommandParameter>
+                                    <StackPanel Spacing="2" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                        <TextBlock Text="{Binding Code}" FontSize="16" HorizontalAlignment="Center" FontFamily="Segoe UI Emoji"/>
+                                        <TextBlock Text="{Binding Name}" FontSize="9" Foreground="Gray" HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </GridView.ItemTemplate>
+                    </GridView>
+
+                    <!-- Европа -->
+                    <TextBlock Text="💶 Европа" FontSize="18" Foreground="White" Margin="0,10,0,0"/>
+                    <GridView x:Name="EuropeFlagsGrid" SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnSymbolClick">
+                        <GridView.ItemTemplate>
+                            <DataTemplate>
+                                <Button Width="80" Height="50" Padding="0" Click="OnSymbolButtonClick" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                                    <Button.CommandParameter>
+                                        <Binding Path="Code"/>
+                                    </Button.CommandParameter>
+                                    <StackPanel Spacing="2" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                        <TextBlock Text="{Binding Code}" FontSize="16" HorizontalAlignment="Center" FontFamily="Segoe UI Emoji"/>
+                                        <TextBlock Text="{Binding Name}" FontSize="9" Foreground="Gray" HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </GridView.ItemTemplate>
+                    </GridView>
+
+                    <!-- Америка и Азия -->
+                    <TextBlock Text="🌎 Америка и Азия" FontSize="18" Foreground="White" Margin="0,10,0,0"/>
+                    <GridView x:Name="AmericaAsiaFlagsGrid" SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnSymbolClick">
+                        <GridView.ItemTemplate>
+                            <DataTemplate>
+                                <Button Width="80" Height="50" Padding="0" Click="OnSymbolButtonClick" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                                    <Button.CommandParameter>
+                                        <Binding Path="Code"/>
+                                    </Button.CommandParameter>
+                                    <StackPanel Spacing="2" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                        <TextBlock Text="{Binding Code}" FontSize="16" HorizontalAlignment="Center" FontFamily="Segoe UI Emoji"/>
+                                        <TextBlock Text="{Binding Name}" FontSize="9" Foreground="Gray" HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </GridView.ItemTemplate>
+                    </GridView>
+                </StackPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Window>

@@ -9,28 +9,26 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Заголовок -->
         <StackPanel Grid.Row="0" Margin="0,0,0,5">
             <TextBlock Text="🌐 Переводчик" FontSize="24" FontWeight="Bold"/>
-            <TextBlock Text="Быстрый перевод между русским и английским + Азбука Морзе и расшифровка" 
+            <TextBlock Text="Быстрый перевод между русским и английским + Азбука Морзе и Двоичный код" 
                        Foreground="Gray" FontSize="12" Margin="0,2,0,0"/>
         </StackPanel>
 
         <!-- Направление -->
         <TextBlock x:Name="DirectionLabel" 
                    Grid.Row="1" 
-                   Text="ru Русский ➔ en English + 📡 Морзе" 
+                   Text="ru Русский ➔ en English + 📡 Морзе + 💻 Binary" 
                    FontSize="16" 
                    FontWeight="Bold" 
                    HorizontalAlignment="Center" 
                    Foreground="#0078D4"
                    Margin="0,5,0,15"/>
 
-        <!-- ОСНОВНОЙ GRID (3 колонки + 3 строки) -->
+        <!-- ОСНОВНОЙ GRID -->
         <Grid Grid.Row="2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -39,6 +37,8 @@
                 <!-- Row 1: Кнопки управления -->
                 <RowDefinition Height="Auto"/>
                 <!-- Row 2: Азбука Морзе -->
+                <RowDefinition Height="Auto"/>
+                <!-- Row 3: Двоичный код -->
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -51,7 +51,7 @@
                 <StackPanel Spacing="10">
                     <TextBlock Text="Исходный текст:" FontSize="14" FontWeight="Bold" Foreground="White"/>
                     <TextBox x:Name="InputText" 
-                             PlaceholderText="Введите текст для перевода..."
+                             PlaceholderText="Введите текст, Морзе или 01001000..."
                              TextWrapping="Wrap" 
                              AcceptsReturn="True"
                              FontSize="14"
@@ -91,7 +91,7 @@
                 </StackPanel>
             </Border>
 
-            <!-- СРЕДНИЙ РЯД: Кнопки управления (растягиваем на все 3 колонки) -->
+            <!-- СРЕДНИЙ РЯД: Кнопки управления -->
             <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" 
                         Orientation="Horizontal" Spacing="10" 
                         HorizontalAlignment="Center" Margin="0,5,0,15">
@@ -99,10 +99,10 @@
                 <Button Content="🗑️ Очистить всё" Click="ClearAll_Click" Width="140" Height="40"/>
             </StackPanel>
 
-            <!-- НИЖНИЙ РЯД: Азбука Морзе -->
-            <Border Grid.Row="2" Grid.Column="0" Background="#1E1E1E" Padding="15" CornerRadius="8" Margin="0,0,10,0">
+            <!-- РЯД: Азбука Морзе -->
+            <Border Grid.Row="2" Grid.Column="0" Background="#1E1E1E" Padding="15" CornerRadius="8" Margin="0,0,10,10">
                 <StackPanel Spacing="10">
-                    <TextBlock x:Name="LeftMorseLabel" Text=" Азбука Морзе (Русский)" FontSize="14" FontWeight="Bold" Foreground="White"/>
+                    <TextBlock x:Name="LeftMorseLabel" Text="📡 Азбука Морзе (Русский)" FontSize="14" FontWeight="Bold" Foreground="White"/>
                     <TextBox x:Name="LeftMorseText" 
                              PlaceholderText="Здесь появится код Морзе..."
                              TextWrapping="Wrap" 
@@ -113,13 +113,13 @@
                              Foreground="#FFD700"
                              FontFamily="Consolas"
                              Height="70"/>
-                    <Button Content="📋 Копировать" Click="CopyLeftMorse_Click" 
+                    <Button Content="📋 Копировать Морзе" Click="CopyLeftMorse_Click" 
                             Height="35" Padding="15,5" Background="#2D2D2D" Foreground="White" 
                             HorizontalAlignment="Center" Margin="0,5,0,0"/>
                 </StackPanel>
             </Border>
 
-            <Border Grid.Row="2" Grid.Column="2" Background="#1E1E1E" Padding="15" CornerRadius="8" Margin="10,0,0,0">
+            <Border Grid.Row="2" Grid.Column="2" Background="#1E1E1E" Padding="15" CornerRadius="8" Margin="10,0,0,10">
                 <StackPanel Spacing="10">
                     <TextBlock x:Name="RightMorseLabel" Text="📡 Азбука Морзе (English)" FontSize="14" FontWeight="Bold" Foreground="White"/>
                     <TextBox x:Name="RightMorseText" 
@@ -132,7 +132,46 @@
                              Foreground="#FFD700"
                              FontFamily="Consolas"
                              Height="70"/>
-                    <Button Content="📋 Копировать" Click="CopyRightMorse_Click" 
+                    <Button Content="📋 Копировать Морзе" Click="CopyRightMorse_Click" 
+                            Height="35" Padding="15,5" Background="#2D2D2D" Foreground="White"
+                            HorizontalAlignment="Center" Margin="0,5,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- НИЖНИЙ РЯД: Двоичный код (Binary) -->
+            <Border Grid.Row="3" Grid.Column="0" Background="#1E1E1E" Padding="15" CornerRadius="8" Margin="0,0,10,0">
+                <StackPanel Spacing="10">
+                    <TextBlock x:Name="LeftBinaryLabel" Text="💻 Двоичный код (Русский)" FontSize="14" FontWeight="Bold" Foreground="White"/>
+                    <TextBox x:Name="LeftBinaryText" 
+                             PlaceholderText="Здесь появится binary-код..."
+                             TextWrapping="Wrap" 
+                             AcceptsReturn="True"
+                             IsReadOnly="True"
+                             FontSize="13"
+                             Background="#2D2D2D"
+                             Foreground="#00E5FF"
+                             FontFamily="Consolas"
+                             Height="70"/>
+                    <Button Content="📋 Копировать Binary" Click="CopyLeftBinary_Click" 
+                            Height="35" Padding="15,5" Background="#2D2D2D" Foreground="White" 
+                            HorizontalAlignment="Center" Margin="0,5,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="3" Grid.Column="2" Background="#1E1E1E" Padding="15" CornerRadius="8" Margin="10,0,0,0">
+                <StackPanel Spacing="10">
+                    <TextBlock x:Name="RightBinaryLabel" Text="💻 Двоичный код (English)" FontSize="14" FontWeight="Bold" Foreground="White"/>
+                    <TextBox x:Name="RightBinaryText" 
+                             PlaceholderText="Здесь появится binary-код..."
+                             TextWrapping="Wrap" 
+                             AcceptsReturn="True"
+                             IsReadOnly="True"
+                             FontSize="13"
+                             Background="#2D2D2D"
+                             Foreground="#00E5FF"
+                             FontFamily="Consolas"
+                             Height="70"/>
+                    <Button Content="📋 Копировать Binary" Click="CopyRightBinary_Click" 
                             Height="35" Padding="15,5" Background="#2D2D2D" Foreground="White"
                             HorizontalAlignment="Center" Margin="0,5,0,0"/>
                 </StackPanel>
