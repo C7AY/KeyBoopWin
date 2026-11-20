@@ -39,12 +39,47 @@
                 <!-- Row 2: Азбука Морзе -->
                 <RowDefinition Height="Auto"/>
                 <!-- Row 3: Двоичный код -->
+                <RowDefinition Height="Auto"/>
+                <!-- Row 4: Настройка Email-->
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
+
+
+            <!-- НИЖНИЙ БЛОК: Настройка Email для лимита MyMemory -->
+            <Border Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3" 
+        Background="#1E1E1E" Padding="12,10" CornerRadius="8" Margin="0,12,0,0">
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Text="📧 Email для лимита 50k:" 
+                   VerticalAlignment="Center" 
+                   Foreground="Gray" 
+                   FontSize="13"/>
+
+                    <TextBox x:Name="EmailTextBox" 
+                 Grid.Column="1" 
+                 PlaceholderText="Введите email (необязательно, увеличивает лимит в 10 раз)..." 
+                 Background="#2D2D2D" 
+                 Foreground="White" 
+                 FontSize="13"/>
+
+                    <Button Grid.Column="2" 
+                Content="💾 Сохранить" 
+                Click="SaveEmail_Click" 
+                Background="#0078D4" 
+                Foreground="White" 
+                Height="34" 
+                Padding="15,0"/>
+                </Grid>
+            </Border>
 
             <!-- ВЕРХНИЙ РЯД: Текстовые поля -->
             <Border Grid.Row="0" Grid.Column="0" Background="#1E1E1E" Padding="15" CornerRadius="8" Margin="0,0,10,10">
@@ -58,6 +93,7 @@
                              Background="#2D2D2D"
                              Foreground="White"
                              MinHeight="120"
+                             MaxHeight="125"
                              TextChanged="InputText_TextChanged"/>
                     <Button Content="📋 Копировать текст" Click="CopyInput_Click" 
                             Height="35" Padding="15,5" Background="#2D2D2D" Foreground="White"
@@ -84,7 +120,8 @@
                              FontSize="14"
                              Background="#2D2D2D"
                              Foreground="#00FF00"
-                             MinHeight="120"/>
+                             MinHeight="120"
+                             MaxHeight="125"/>
                     <Button Content="📋 Копировать перевод" Click="CopyTranslation_Click" 
                             Height="35" Padding="15,5" Background="#2D2D2D" Foreground="White"
                             HorizontalAlignment="Center" Margin="0,5,0,0"/>

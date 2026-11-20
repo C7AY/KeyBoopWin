@@ -66,7 +66,14 @@ namespace KeyBoopWin
 
             CharToMorseRu = new Dictionary<char, string>();
             foreach (var kvp in MorseToCharRu) CharToMorseRu[kvp.Value] = kvp.Key;
+
+
         }
+        private static readonly string EmailFilePath = System.IO.Path.Combine(
+           Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+           "KeyBoopWin",
+           "user_email.txt"
+           );
 
         private static void AddMorse(Dictionary<string, char> dict, string code, char ch)
         {
@@ -76,7 +83,7 @@ namespace KeyBoopWin
         public TranslatorWindow()
         {
             this.InitializeComponent();
-            this.AppWindow.Resize(new Windows.Graphics.SizeInt32(980, 850));
+            this.AppWindow.Resize(new Windows.Graphics.SizeInt32(980, 910));
             CenterWindowOnScreen();
 
             _httpClient = new HttpClient();
@@ -85,6 +92,48 @@ namespace KeyBoopWin
             );
             this.Closed += TranslatorWindow_Closed;
             UpdateDirectionLabel();
+            if (System.IO.File.Exists(EmailFilePath))
+            {
+                EmailTextBox.Text = System.IO.File.ReadAllText(EmailFilePath).Trim();
+            }
+
+        }
+
+
+        private void SaveEmail_Click(object sender, RoutedEventArgs e)
+        {
+            string email = EmailTextBox.Text.Trim();
+
+            // Простая проверка, если поле не пустое
+            if (!string.IsNullOrEmpty(email) && (!email.Contains('@') || !email.Contains('.')))
+            {
+                ShowError("Введите корректный email-адрес или оставьте поле пустым.");
+                return;
+            }
+
+            try
+            {
+                string dir = System.IO.Path.GetDirectoryName(EmailFilePath)!;
+                if (!System.IO.Directory.Exists(dir))
+                    System.IO.Directory.CreateDirectory(dir);
+
+                System.IO.File.WriteAllText(EmailFilePath, email);
+
+                var dialog = new ContentDialog
+                {
+                    Title = "✅ Сохранено",
+                    Content = string.IsNullOrEmpty(email)
+                        ? "Email удален. Используется базовый лимит (5 000 символов/день)."
+                        : $"Email «{email}» сохранен! Лимит увеличен до 50 000 символов/день.",
+                    CloseButtonText = "OK",
+                    XamlRoot = this.Content.XamlRoot
+                };
+                _ = dialog.ShowAsync();
+            }
+            catch (Exception ex)
+            {
+                ShowError($"Не удалось сохранить email:\n{ex.Message}");
+            }
         }
 
         #region Binary Helpers
@@ -444,12 +493,17 @@ namespace KeyBoopWin
             }
 
             // 2. Резервный перевод через MyMemory API (через UriBuilder)
+            string userEmail = EmailTextBox.Text.Trim();
+            string emailParam = (!string.IsNullOrEmpty(userEmail) && userEmail.Contains('@'))
+                ? $"&de={Uri.EscapeDataString(userEmail)}"
+                : "";
+
             var fallbackBuilder = new UriBuilder
             {
                 Scheme = "https",
                 Host = "api.mymemory.translated.net",
                 Path = "get",
-                Query = $"q={Uri.EscapeDataString(text)}&langpair={from}%7C{to}"
+                Query = $"q={Uri.EscapeDataString(text)}&langpair={from}%7C{to}{emailParam}"
             };
 
             using var fallbackResponse = await _httpClient.GetAsync(fallbackBuilder.Uri);
