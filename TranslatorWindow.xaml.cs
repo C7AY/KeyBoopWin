@@ -80,6 +80,9 @@ namespace KeyBoopWin
             CenterWindowOnScreen();
 
             _httpClient = new HttpClient();
+            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            );
             this.Closed += TranslatorWindow_Closed;
             UpdateDirectionLabel();
         }
@@ -399,23 +402,66 @@ namespace KeyBoopWin
 
         private async Task<string> TranslateWithGoogleAsync(string text, string from, string to)
         {
-            string url = $"https://translate.googleapis.com/translate_a/single?client=gtx&sl={from}&tl={to}&dt=t&q={Uri.EscapeDataString(text)}";
-            var response = await _httpClient.GetAsync(url);
-            response.EnsureSuccessStatusCode();
-            string json = await response.Content.ReadAsStringAsync();
-
-            using (JsonDocument doc = JsonDocument.Parse(json))
+            // 1. Попытка через Google Translate (через UriBuilder)
+            try
             {
-                JsonElement sentences = doc.RootElement[0];
-                string translatedText = "";
-                foreach (JsonElement sentence in sentences.EnumerateArray())
+                var googleBuilder = new UriBuilder
                 {
-                    if (sentence.GetArrayLength() > 0)
+                    Scheme = "https",
+                    Host = "://googleapis.com",
+                    Path = "translate_a/single",
+                    Query = $"client=gtx&sl={from}&tl={to}&dt=t&q={Uri.EscapeDataString(text)}"
+                };
+
+                using var response = await _httpClient.GetAsync(googleBuilder.Uri);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    string json = await response.Content.ReadAsStringAsync();
+                    using JsonDocument doc = JsonDocument.Parse(json);
+                    JsonElement sentences = doc.RootElement.EnumerateArray().FirstOrDefault();
+                    StringBuilder sb = new StringBuilder();
+
+                    if (sentences.ValueKind == JsonValueKind.Array)
                     {
-                        translatedText += sentence[0].GetString() ?? "";
+                        foreach (JsonElement sentence in sentences.EnumerateArray())
+                        {
+                            if (sentence.ValueKind == JsonValueKind.Array && sentence.GetArrayLength() > 0)
+                            {
+                                sb.Append(sentence.EnumerateArray().FirstOrDefault().GetString() ?? "");
+                            }
+                        }
                     }
+
+                    string result = sb.ToString();
+                    if (!string.IsNullOrWhiteSpace(result))
+                        return result;
                 }
-                return translatedText;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Google fallback: " + ex.Message);
+            }
+
+            // 2. Резервный перевод через MyMemory API (через UriBuilder)
+            var fallbackBuilder = new UriBuilder
+            {
+                Scheme = "https",
+                Host = "api.mymemory.translated.net",
+                Path = "get",
+                Query = $"q={Uri.EscapeDataString(text)}&langpair={from}%7C{to}"
+            };
+
+            using var fallbackResponse = await _httpClient.GetAsync(fallbackBuilder.Uri);
+            fallbackResponse.EnsureSuccessStatusCode();
+
+            string fallbackJson = await fallbackResponse.Content.ReadAsStringAsync();
+            using (JsonDocument doc = JsonDocument.Parse(fallbackJson))
+            {
+                return doc.RootElement
+                          .GetProperty("responseData")
+                          .GetProperty("translatedText")
+                          .GetString() ?? "";
             }
         }
 

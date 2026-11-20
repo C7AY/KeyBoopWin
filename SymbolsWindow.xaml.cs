@@ -175,6 +175,11 @@ namespace KeyBoopWin
                     symbol = flag.Code;
                 }
 
+                else if (btn.DataContext is string customSymbol) // <-- Добавляем эту проверку
+                {
+                    symbol = customSymbol;
+                }
+
                 if (!string.IsNullOrEmpty(symbol))
                 {
                     CopySymbolToClipboard(symbol);
